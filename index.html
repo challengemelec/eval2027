@@ -1513,16 +1513,77 @@
                 .replace(/'/g, "&#039;");
         }
 
-        function toggleJuryMode() {
-            if (isJuryMode) {
-                openPasswordModal(); // Ouvre la modale pour entrer le mot de passe organisateur
-            } else {
-                isJuryMode = true;
-                applyJuryModeUI();
-                switchTab('evaluation');
-                showToast("Mode Jury Activé.");
+        let passwordTargetMode = 'organizer'; // 'organizer' ou 'jury'
+
+function toggleJuryMode() {
+    if (isJuryMode) {
+        openPasswordModal('organizer'); // Demande le mot de passe pour repasser en mode Organisateur
+    } else {
+        openPasswordModal('jury');      // Demande le mot de passe pour passer en mode Jury
+    }
+}
+
+function openPasswordModal(targetMode = 'organizer') {
+    passwordTargetMode = targetMode;
+    const modal = document.getElementById('password-modal');
+    if (!modal) return;
+    
+    const titleEl = modal.querySelector('h3');
+    const descEl = modal.querySelector('p');
+    const input = document.getElementById('organizer-password-input');
+    
+    if (input) input.value = '';
+    
+    if (targetMode === 'organizer') {
+        if (titleEl) titleEl.innerText = "Accès Organisateur";
+        if (descEl) descEl.innerText = "Veuillez entrer le mot de passe pour passer en mode Organisateur :";
+    } else {
+        if (titleEl) titleEl.innerText = "Accès Jury";
+        if (descEl) descEl.innerText = "Veuillez entrer le mot de passe pour passer en mode Jury :";
+    }
+    
+    modal.classList.remove('hidden');
+    if (input) input.focus();
+}
+
+function verifyOrganizerPassword(e) {
+    e.preventDefault();
+    const inputEl = document.getElementById('organizer-password-input');
+    if (!inputEl) return;
+    
+    const val = inputEl.value;
+    
+    if (passwordTargetMode === 'organizer') {
+        if (val === "ChallengeMELEC" || val === "admin") {
+            isJuryMode = false;
+            applyJuryModeUI();
+            closePasswordModal();
+            showToast("Mode Organisateur Activé.");
+            if (typeof renderEvaluationWorkspace === 'function') {
+                renderEvaluationWorkspace();
             }
+        } else {
+            showToast("Mot de passe organisateur incorrect.");
+            inputEl.value = '';
+            inputEl.focus();
         }
+    } else {
+        // Mot de passe dédié au Jury (vous pouvez le modifier ici)
+        if (val === "JuryMELEC" || val === "jury") {
+            isJuryMode = true;
+            applyJuryModeUI();
+            if (typeof switchTab === 'function') {
+                switchTab('evaluation');
+            }
+            closePasswordModal();
+            showToast("Mode Jury Activé.");
+        } else {
+            showToast("Mot de passe jury incorrect.");
+            inputEl.value = '';
+            inputEl.focus();
+        }
+    }
+}
 
         function applyJuryModeUI() {
             const btnText = document.getElementById('jury-mode-btn-text');
