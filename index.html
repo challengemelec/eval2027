@@ -1,0 +1,2756 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application d'Évaluation - Challenge MELEC (Supabase Realtime)</title>
+    
+    <!-- Tailwind CSS v4 -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style type="text/theme">
+        @theme {
+            --color-brand-50: #f0f9ff;
+            --color-brand-100: #e0f2fe;
+            --color-brand-500: #0284c7;
+            --color-brand-600: #0284c7;
+            --color-brand-700: #0369a1;
+            --color-brand-900: #0c4a6e;
+
+            --color-pinkeval-50: #fff1f2;
+            --color-pinkeval-100: #ffe4e6;
+            --color-pinkeval-200: #fecdd3;
+            --color-pinkeval-500: #f43f5e;
+            --color-pinkeval-700: #be123c;
+        }
+    </style>
+    <style>
+        /* Masque l'avertissement de Tailwind s'il tente de se connecter au terminal */
+        #tailwind-error { display: none !important; }
+    </style>
+    
+    <!-- FontAwesome & Chart.js -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Supabase JS Client SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* --- RÈGLE POUR MASQUER LE BOUTON D'IMPRESSION HORS MODE JURY --- */
+        .jury-only {
+            display: none !important;
+        }
+        body.jury-mode .jury-only,
+        body:not(.admin-mode) .jury-only {
+            display: flex !important;
+        }
+        /* ------------------------------------------------------------- */
+
+            @media print {
+                /* ============================================================
+                1. CONFIGURATION DES FORMATS DE PAGES STRICTS
+                ============================================================ */
+
+                /* Format par défaut : appliqué aux Affiches (Portrait) et au Classement */
+                @page {
+                    size: A4 portrait; /* Retour au format Portrait stable */
+                    margin: 0;
+                }
+
+                /* Format exceptionnel créé pour la Grille globale des 12 équipes (A3) */
+                @page page-grand-format {
+                    size: A3 portrait;
+                    margin: 6mm;
+                }
+
+
+                /* ============================================================
+                2. RESTE DE TON CODE COMPACTAGE ET COULEURS (INCHANGÉ)
+                ============================================================ */
+                body {
+                    background-color: #ffffff !important;
+                    color: #000000 !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                }
+                
+                header, nav, .no-print, button, #toast, #confirm-modal, 
+                #team-modal, #import-modal, #competence-modal, #password-modal, .admin-only {
+                    display: none !important;
+                }
+                
+                main {
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    max-width: 100% !important;
+                }
+                
+                .tab-content {
+                    display: none !important;
+                }
+
+
+                /* ============================================================
+                3. FLUX D'AFFICHAGE ET MODES SELON LES CLASSES DU BODY
+                ============================================================ */
+
+                /* --- CAS 1 : Impression de la Grille globale (12 équipes) --- */
+                body:not(.printing-posters):not(.printing-results) #tab-evaluation {
+                    display: block !important;
+                    width: 100% !important;
+                    page: page-grand-format; 
+                }
+
+                body:not(.printing-posters):not(.printing-results) .critere-row,
+                body:not(.printing-posters):not(.printing-results) tr,
+                body:not(.printing-posters):not(.printing-results) li {
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
+                }
+
+
+                /* --- CAS 2 : Impression des Affiches (Portrait - Bandeau Épais - Page Unique) --- */
+                body.printing-posters #tab-posters,
+                body.printing-posters #posters-container {
+                    display: block !important;
+                    width: 100% !important; 
+                    margin: 0 !important;
+                    padding: 0 !important;
+                }
+
+                .poster-card {
+                    page-break-before: always !important;
+                    page-break-after: always !important;
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
+                    
+                    width: 210mm !important;
+                    height: 275mm !important; 
+                    max-height: 275mm !important; 
+                    box-sizing: border-box !important; 
+                    
+                    box-shadow: none !important;
+                    border: 1px solid #e2e8f0 !important; 
+                    border-radius: 16px !important;       
+                    margin: 0 auto !important;
+                    padding: 24px !important;              
+                    
+                    display: flex !important;
+                    flex-direction: column !important;
+                    justify-content: space-between !important;
+                    align-items: center !important;
+                }
+                
+                .poster-header-box {
+                    color: #ffffff !important;
+                    padding: 32px !important; 
+                    border-radius: 12px !important;
+                    
+                    /* Force une hauteur minimale importante pour doubler visuellement le bandeau */
+                    min-height: 120px !important; 
+                    
+                    /* Centrage absolu du texte Équipe */
+                    text-align: center !important;
+                    display: flex !important;
+                    justify-content: center !important;
+                    align-items: center !important;
+                    
+                    width: 100% !important; 
+                    box-sizing: border-box !important;
+                }
+
+                .poster-header-box h1,
+                .poster-header-box h2,
+                .poster-header-box div {
+                    text-align: center !important;
+                    width: 100% !important;
+                    margin: 0 auto !important;
+                    /* Augmentation de la taille de police et hauteur de ligne forcée */
+                    font-size: 3.5rem !important; 
+                    line-height: 1.2 !important;
+                }
+                
+                /* Logo ajusté pour compenser la hauteur du grand bandeau */
+                .poster-logo {
+                    max-height: 200px !important; 
+                    width: auto !important;
+                    max-width: 100% !important;
+                    object-fit: contain !important;
+                    margin: 10px auto !important;
+                }
+
+                .poster-card > div:nth-child(2) {
+                    text-align: center !important;
+                }
+
+                .poster-card > div:last-child {
+                    text-align: center !important;
+                    width: 100% !important;
+                    page-break-inside: avoid !important;
+                }
+
+                /* ============================================================
+                4. GESTION DES COUPURES DE LIGNES
+                ============================================================ */
+                section > div:first-child, h3, h4, 
+                [class*="bg-slate-"], [class*="bg-gray-"], [class*="bg-blue-"] {
+                    page-break-after: avoid !important;
+                    break-after: avoid !important;
+                }
+
+                .p-6, .p-5, .p-4, .p-3, section, article, div {
+                    padding-top: 1px !important;
+                    padding-bottom: 1px !important;
+                    margin-top: 1px !important;
+                    margin-bottom: 1px !important;
+                }
+
+                tr, li, .critere-row, p {
+                    page-break-inside: avoid !important;
+                    break-inside: avoid !important;
+                }
+            }
+            
+            /* (Le reste de vos styles .poster-card, etc. reste inchangé en dessous) */
+    </style>
+</head>
+<body class="h-full flex flex-col text-slate-800">
+
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-40 border-b border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+            <div class="flex flex-col md:flex-row items-center justify-between gap-3">
+                
+                <!-- LIGNE 1 (ou GAUCHE sur grand écran) : Logo + Nom App -->
+                <div class="flex items-center justify-between w-full md:w-auto">
+                    <div class="flex items-center space-x-3">
+                        <!-- Logo Challenge Melec (ou icône de secours) -->
+                        <div class="flex items-center">
+                            <img src="https://lh3.googleusercontent.com/d/15ST6JMjSLSQnqGOTuWsaKcHZ4q6STSMt" alt="Challenge MELEC" class="h-10 w-auto object-contain">
+                        </div>
+                        <div class="border-l border-slate-700 pl-3">
+                            <h1 class="text-base font-bold tracking-tight text-white leading-tight">
+                                ÉvalÉquipe
+                            </h1>
+                            <p class="text-[11px] text-slate-400">Évaluation Synchronisée</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LIGNE 2 (ou DROITE sur grand écran) : Contrôles & Boutons style "Menu Windows / Outils" -->
+                <div class="flex flex-wrap items-center justify-center md:justify-end gap-2 w-full md:w-auto">
+                    
+                    <!-- Statut Supabase -->
+                    <div id="supabase-status-badge" onclick="syncWithSupabase(true)" title="Statut Supabase (Cliquer pour forcer la synchro)" class="cursor-pointer flex items-center space-x-1.5 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 px-2 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-900 transition">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        <i class="fa-solid fa-bolt text-emerald-400"></i>
+                        <span class="hidden sm:inline text-[11px]">En direct</span>
+                    </div>
+
+                    <!-- Session / Année -->
+                    <div class="flex items-center space-x-1 bg-slate-800 px-2 py-1.5 rounded-lg border border-slate-700">
+                        <span class="text-xs text-slate-400 px-1"><i class="fa-solid fa-calendar-days text-brand-400"></i></span>
+                        <input type="number" id="header-year-input" min="2020" max="2040" value="2026" onchange="updateCompetitionYear(this.value)" class="w-14 text-center font-black text-xs text-brand-300 bg-slate-900 border border-slate-600 rounded py-0.5 focus:outline-none focus:ring-1 focus:ring-brand-400">
+                    </div>
+
+                    <!-- Mode Jury -->
+                    <button onclick="toggleJuryMode()" id="jury-mode-btn" class="text-xs px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold shadow-xs transition flex items-center space-x-1.5">
+                        <i class="fa-solid fa-user-ninja"></i>
+                        <span id="jury-mode-btn-text">Mode Jury</span>
+                    </button>
+
+                    <!-- Zone Admin : Boutons icônes style "Menu Windows" (sans texte lourd) -->
+                    <div class="admin-only flex items-center space-x-1.5 border-l border-slate-700 pl-2">
+                        <button onclick="exportAllBackupJSON()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition" title="Sauvegarder (JSON)">
+                            <i class="fa-solid fa-download text-brand-400"></i>
+                        </button>
+                        <button onclick="openImportModal('all')" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition" title="Importer des données">
+                            <i class="fa-solid fa-file-import text-brand-400"></i>
+                        </button>
+                        <button onclick="resetAllDataConfirmation()" class="p-2 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-300 border border-slate-700 hover:border-rose-900 transition" title="Réinitialiser l'application">
+                            <i class="fa-solid fa-rotate-left"></i>
+                        </button>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </header>
+
+    <nav class="bg-white border-b border-slate-200 shadow-2xs no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between overflow-x-auto py-2">
+                <!-- Groupe des onglets de gauche -->
+                <div class="flex space-x-1 sm:space-x-4">
+                    <!-- Masqué pour le jury -->
+                    <button onclick="switchTab('teams')" id="tab-btn-teams" class="tab-btn admin-only px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center space-x-2 text-slate-600 hover:bg-slate-100">
+                        <i class="fa-solid fa-users"></i>
+                        <span>Équipes</span>
+                    </button>
+                    <button onclick="switchTab('competences')" id="tab-btn-competences" class="tab-btn admin-only px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center space-x-2 text-slate-600 hover:bg-slate-100">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>Grille & Critères</span>
+                    </button>
+                    
+                    <!-- SEUL ONGLET VISIBLE : Évaluation en Direct -->
+                    <button onclick="switchTab('evaluation')" id="tab-btn-evaluation" class="tab-btn px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center space-x-2 bg-brand-50 text-brand-700">
+                        <i class="fa-solid fa-list-check"></i>
+                        <span>Évaluation en Direct</span>
+                    </button>
+
+                    <!-- Masqué pour le jury -->
+                    <button onclick="switchTab('posters')" id="tab-btn-posters" class="tab-btn admin-only px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center space-x-2 text-slate-600 hover:bg-slate-100">
+                        <i class="fa-solid fa-id-card"></i>
+                        <span>Affiches Équipes</span>
+                    </button>
+                    <button onclick="switchTab('results')" id="tab-btn-results" class="tab-btn admin-only px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center space-x-2 text-slate-600 hover:bg-slate-100">
+                        <i class="fa-solid fa-chart-column"></i>
+                        <span>Classement & Stats</span>
+                    </button>
+                </div>
+
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- TAB TEAMS (Masqué pour le jury) -->
+        <section id="tab-teams" class="tab-content admin-only hidden">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">Équipes et Candidats du Concours</h2>
+                    <p class="text-xs text-slate-500">Configurez les équipes, les membres, la couleur du bandeau et le logo de l'établissement.</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="openImportModal('teams')" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-xs">
+                        <i class="fa-solid fa-file-arrow-up text-brand-400"></i>
+                    </button>
+                    <button onclick="exportTeamsJSON()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-xs">
+                        <i class="fa-solid fa-file-arrow-down"></i>
+                    </button>
+                    <button onclick="openTeamModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition flex items-center space-x-2 shadow-sm">
+                        <i class="fa-solid fa-user-plus"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Teams Cards Grid -->
+            <div id="teams-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Dynamically populated -->
+            </div>
+        </section>
+
+        <!-- TAB COMPETENCES (Masqué pour le jury) -->
+        <section id="tab-competences" class="tab-content admin-only hidden">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">Structure de la Grille d'Évaluation</h2>
+                    <p class="text-xs text-slate-500">Compétences, Critères d'évaluation, Poids du critère et Poids individuel de chaque indicateur.</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="openImportModal('grid')" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-xs">
+                        <i class="fa-solid fa-file-arrow-up text-indigo-200"></i>
+                    </button>
+
+                    <button onclick="exportGridJSON()" class="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-xs">
+                        <i class="fa-solid fa-file-arrow-down text-slate-400"></i>
+                    </button>
+
+                    <button onclick="loadOfficial2026Grid()" class="px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1.5 shadow-xs">
+                        <i class="fa-solid fa-rotate"></i>
+                        <span>Défaut</span>
+                    </button>
+
+                    <button class="px-4 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-500 transition flex items-center gap-2 shadow-sm">
+                        <i class="fa-solid fa-plus text-xs"></i>Compétence
+                    </button>
+                </div>
+            </div>
+
+            <div id="competences-editor-container" class="space-y-6">
+                <!-- Dynamically populated editor -->
+            </div>
+        </section>
+
+        <!-- TAB EVALUATION (Actif et visible par défaut) -->
+        <section id="tab-evaluation" class="tab-content relative">
+            
+            <!-- Floating Sticky Team Number Badge -->
+            <div id="floating-team-badge" class="sticky top-16 sm:top-20 z-30 mb-6 transition-all duration-300">
+                <div class="bg-slate-900/95 backdrop-blur-md text-white p-3 sm:p-4 rounded-2xl shadow-xl border border-slate-700 flex flex-wrap items-center justify-between gap-4">
+                    
+                    <!-- Gauche : N° d'équipe, École, Élèves -->
+                    <div class="flex items-center space-x-3 sm:space-x-4">
+                        <div id="floating-team-badge-pill" class="px-4 py-2 text-white font-black text-2xl sm:text-4xl rounded-xl shadow-lg uppercase tracking-wider border border-white/20 shrink-0">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div>
+                            <!-- Taille de l'école augmentée : text-base (mobile) / text-lg (desktop) -->
+                            <div id="floating-team-school" class="text-base sm:text-lg font-bold text-slate-200 flex items-center gap-1.5">
+                                <i class="fa-solid fa-school text-brand-400 text-sm"></i>
+                                <span>-</span>
+                            </div>
+                            <!-- Taille des candidats augmentée : text-sm (mobile) / text-base (desktop) -->
+                            <div id="floating-team-members" class="text-sm sm:text-base text-slate-400 font-medium line-clamp-1 max-w-xs sm:max-w-md">
+                                -
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Droite : Statut de la fiche + Scores & Progression -->
+                    <div class="flex items-center flex-wrap gap-3">
+                        
+                        <!-- AJOUT DU STATUT ICI -->
+                        <div id="floating-missing-indicators-badge" class="px-3 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-bold flex items-center gap-2">
+                            <i class="fa-solid fa-triangle-exclamation text-amber-400 text-sm"></i>
+                            <span id="floating-missing-indicators-text">En cours (0 manquant)</span>
+                        </div>
+
+                        <!-- Scores & Progression (Masqués en Mode Jury) -->
+                        <div class="flex items-center space-x-4 bg-slate-800/90 px-4 py-2 rounded-xl border border-slate-700/70 score-display-box">
+                            <div class="text-right">
+                                <div class="text-[10px] uppercase font-bold text-slate-400">Score Équipe</div>
+                                <div class="text-lg sm:text-xl font-black text-emerald-400"><span id="floating-eval-total-score">0.00</span> <span class="text-xs text-slate-400">/ 110</span></div>
+                            </div>
+                            <div class="h-8 w-px bg-slate-700"></div>
+                            <div class="text-right">
+                                <div class="text-[10px] uppercase font-bold text-slate-400">Avancement</div>
+                                <div id="floating-eval-progress-pct" class="text-sm font-extrabold text-brand-300">0%</div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+            </div>
+            <!-- Barre supérieure d'évaluation unifiée sur une seule ligne -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-wrap lg:flex-nowrap items-center justify-between gap-4 w-full">
+                
+                <!-- 1. Équipe évaluée -->
+                <div class="flex items-center space-x-3 flex-1 min-w-[280px]">
+                    <label class="text-xs font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">Équipe évaluée :</label>
+                    <select id="eval-team-select" onchange="changeEvaluationTeam(this.value)" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-bold text-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                
+                <!-- 2. Note Totale & Progression (Masqué en Mode Jury si configuré) -->
+                <div class="score-display-box flex items-center space-x-4 bg-slate-900 text-white px-4 py-2 rounded-lg shadow-sm whitespace-nowrap">
+                    <div>
+                        <div class="text-[10px] uppercase font-bold text-slate-400">Note Totale</div>
+                        <div class="text-xl font-black text-emerald-400"><span id="eval-total-score">0.00</span> <span class="text-xs text-slate-400">/ 110 pts</span></div>
+                    </div>
+                    <div class="h-8 w-px bg-slate-700"></div>
+                    <div>
+                        <div class="text-[10px] uppercase font-bold text-slate-400">Progression</div>
+                        <div id="eval-progress-pct" class="text-sm font-bold text-brand-300">0%</div>
+                    </div>
+                </div>
+
+                <!-- 3. Bouton Imprimer -->
+                <div class="shrink-0">
+                    <button onclick="window.printEvaluationGrid()" class="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold shadow-sm transition flex items-center gap-2">
+                        <i class="fa-solid fa-print text-sm"></i>
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- SST & PRE QUIZ BLOCK -->
+            <div class="bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl shadow-sm p-4 mb-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h3 class="font-black text-base uppercase tracking-wide flex items-center gap-2">
+                            <i class="fa-solid fa-shield-halved"></i>
+                            Quizz SST & PRE (Santé, Sécurité et Prévention des Risques)
+                        </h3>
+                        <p class="text-xs text-amber-100">Évaluation théorique sur 10 points hors compétences de réalisation.</p>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-white/20 px-3 py-1.5 rounded-lg backdrop-blur-xs">
+                        <label class="text-xs font-bold uppercase tracking-wide">Note Quiz / 10 :</label>
+                        <input type="number" id="sst-quiz-score-input" min="0" max="10" step="0.1" value="0" onchange="updateSSTQuizScore(this.value)" class="w-20 px-2 py-1 text-center font-black text-slate-900 bg-white rounded border border-amber-300 text-sm focus:outline-none focus:ring-2 focus:ring-amber-900">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Evaluation Workspace Container -->
+            <div id="eval-workspace" class="space-y-6">
+                <!-- Dynamically populated evaluation criteria & indicators -->
+            </div>
+
+            <!-- BOTTOM STATS: Color Counts Summary -->
+            <div class="mt-8 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Statistiques de positionnement de l'équipe :</h4>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                    <div class="p-3 rounded-lg bg-rose-50 border border-rose-200">
+                        <div class="text-xs font-bold text-rose-700 flex items-center justify-center gap-1.5 mb-1">
+                            <span class="w-3 h-3 rounded-full bg-rose-600"></span> Rouge (0%)
+                        </div>
+                        <div id="stat-count-0" class="text-xl font-black text-rose-800">0</div>
+                    </div>
+                    <div class="p-3 rounded-lg bg-amber-50 border border-amber-200">
+                        <div class="text-xs font-bold text-amber-700 flex items-center justify-center gap-1.5 mb-1">
+                            <span class="w-3 h-3 rounded-full bg-amber-500"></span> Orange (33%)
+                        </div>
+                        <div id="stat-count-1" class="text-xl font-black text-amber-800">0</div>
+                    </div>
+                    <div class="p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                        <div class="text-xs font-bold text-emerald-700 flex items-center justify-center gap-1.5 mb-1">
+                            <span class="w-3 h-3 rounded-full bg-emerald-500"></span> Vert (66%)
+                        </div>
+                        <div id="stat-count-2" class="text-xl font-black text-emerald-800">0</div>
+                    </div>
+                    <div class="p-3 rounded-lg bg-emerald-100 border border-emerald-300">
+                        <div class="text-xs font-bold text-emerald-900 flex items-center justify-center gap-1.5 mb-1">
+                            <span class="w-3 h-3 rounded-full bg-emerald-800"></span> Vert Foncé (100%)
+                        </div>
+                        <div id="stat-count-3" class="text-xl font-black text-emerald-950">0</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB POSTERS (Masqué pour le jury) -->
+        <section id="tab-posters" class="tab-content admin-only hidden">
+            <div class="no-print flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">Affichettes Signalétiques Équipes</h2>
+                    <p class="text-xs text-slate-500">Modèle officiel pour la Session <span class="display-competition-year">2026</span> avec logos, couleurs et noms des candidats.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <button onclick="printPostersOnly()" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center space-x-2 shadow-xs">
+                        <i class="fa-solid fa-print text-rose-400"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Posters Container -->
+            <div id="posters-container" class="space-y-8">
+                <!-- Posters dynamically generated -->
+            </div>
+        </section>
+
+        <!-- TAB RESULTS (Masqué pour le jury) -->
+        <section id="tab-results" class="tab-content admin-only hidden">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 no-print">
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">Classement Général et Statistiques</h2>
+                    <p class="text-xs text-slate-500">Session <span class="display-competition-year">2026</span></p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                </div>
+                
+            </div>
+
+            <!-- Results Print Wrapper -->
+            <div id="results-print-wrapper" class="space-y-6">
+                <div class="hidden print:block text-center py-4 border-b-2 border-slate-800 mb-6">
+                    <h1 class="text-3xl font-black text-slate-900 uppercase">Classement Général - Challenge MELEC <span class="display-competition-year">2026</span></h1>
+                    <p class="text-sm font-bold text-slate-600">Synthèse Officielle des Notes</p>
+                </div>
+
+                <!-- Leaderboard Table -->
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-8">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="bg-slate-900 text-white font-bold uppercase tracking-wider">
+                                    <th class="p-3 text-center w-12">Rang</th>
+                                    <th class="p-3">Équipe</th>
+                                    <th class="p-3">Candidats</th>
+                                    <th class="p-3">Établissement</th>
+                                    <th class="p-3 text-center">Total</th>
+                                    <th class="p-3 text-center">Évaluation</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-table-body" class="divide-y divide-slate-200">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Charts Grid -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 no-print">
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 class="text-sm font-bold text-slate-800 mb-4">Comparatif des Équipes (Total / 110)</h3>
+                        <div class="h-64">
+                            <canvas id="bar-chart-results"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                        <h3 class="text-sm font-bold text-slate-800 mb-4">Profil des Compétences par Équipe</h3>
+                        <div class="h-64">
+                            <canvas id="radar-chart-results"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Password Modal for Organizer Mode -->
+    <div id="password-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center border border-slate-100">
+            <div class="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4 text-xl">
+                <i class="fa-solid fa-lock"></i>
+            </div>
+            <h3 class="text-base font-bold text-slate-900 mb-2">Accès Organisateur</h3>
+            <p class="text-xs text-slate-600 mb-4">Veuillez entrer le mot de passe pour repasser en mode Organisateur :</p>
+            
+            <form onsubmit="verifyOrganizerPassword(event)" class="space-y-4">
+                <input type="password" id="organizer-password-input" required placeholder="Mot de passe" class="w-full px-3 py-2 text-center text-sm font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                <div class="flex justify-center space-x-3">
+                    <button type="button" onclick="closePasswordModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">Annuler</button>
+                    <button type="submit" class="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-xs">Valider</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Team Modal -->
+    <div id="team-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="team-modal-title" class="text-lg font-bold text-slate-900">Ajouter une Équipe</h3>
+                <button onclick="closeTeamModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <form id="team-form" onsubmit="saveTeam(event)" class="space-y-4">
+                <input type="hidden" id="team-id">
+                
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nom de l'Équipe :</label>
+                    <input type="text" id="team-name" required placeholder="Ex: EQUIPE 1" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-bold text-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Couleur de l'Équipe (Bandeau Affiche) :</label>
+                    <div class="flex items-center space-x-3">
+                        <input type="color" id="team-color" value="#0070c0" class="h-9 w-16 p-0.5 rounded border border-slate-300 cursor-pointer">
+                        <span class="text-xs text-slate-500 font-medium">Sélectionnez la couleur du bandeau supérieur</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Établissement / Lycée :</label>
+                    <input type="text" id="team-school" placeholder="Ex: LP Jean Monnet" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Candidats (Un par ligne) :</label>
+                    <textarea id="team-members" rows="3" placeholder="Prénom NOM&#10;Prénom NOM" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Surveillant d'Équipe :</label>
+                    <input type="text" id="team-supervisor" placeholder="Prénom NOM" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+
+                <!-- Logo Image Upload & URL Section -->
+                <div class="pt-2 border-t border-slate-100">
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Logo du Lycée :</label>
+                    
+                    <div class="space-y-2">
+                        <div>
+                            <span class="text-[11px] text-slate-500">URL d'image ou Lien Google Drive</span>
+                            <input type="url" id="team-logo-url" placeholder="https://..." oninput="previewLogoUrl(this.value)" class="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Logo Preview Box -->
+                    <div id="logo-preview-box" class="mt-3 flex items-center justify-center p-2 bg-slate-50 border border-slate-200 rounded-lg h-24 hidden">
+                        <img id="logo-preview-img" src="" alt="Aperçu du logo" class="max-h-20 max-w-full object-contain">
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+                    <button type="button" onclick="closeTeamModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">Annuler</button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-sm">Enregistrer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JSON Import Modal -->
+    <div id="import-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="import-modal-title" class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-file-import text-brand-600"></i>
+                    <span>Importer des Données (JSON)</span>
+                </h3>
+                <button onclick="closeImportModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <p class="text-xs text-slate-600">Sélectionnez le type de fichier JSON que vous souhaitez importer :</p>
+
+                <div class="grid grid-cols-3 gap-2 p-1 bg-slate-100 rounded-xl text-xs font-bold text-center">
+                    <button type="button" id="import-type-btn-all" onclick="selectImportType('all')" class="py-2 rounded-lg bg-white text-brand-700 shadow-2xs">Sauvegarde Complète</button>
+                    <button type="button" id="import-type-btn-grid" onclick="selectImportType('grid')" class="py-2 rounded-lg text-slate-600 hover:text-slate-900">Grille seule</button>
+                    <button type="button" id="import-type-btn-teams" onclick="selectImportType('teams')" class="py-2 rounded-lg text-slate-600 hover:text-slate-900">Équipes seules</button>
+                </div>
+
+                <div class="border-2 border-dashed border-slate-300 hover:border-brand-500 rounded-xl p-6 text-center transition bg-slate-50/50 cursor-pointer" onclick="document.getElementById('import-file-input').click()">
+                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-brand-500 mb-2"></i>
+                    <p class="text-xs font-bold text-slate-800 mb-1">Cliquez pour choisir un fichier .json</p>
+                    <p class="text-[11px] text-slate-500" id="import-file-help-text">Importer le fichier de sauvegarde complète</p>
+                    <input type="file" id="import-file-input" accept=".json,application/json" onchange="handleImportFileSelect(event)" class="hidden">
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-4 border-t border-slate-100 mt-4">
+                <button type="button" onclick="closeImportModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">Fermer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center">
+            <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-4 text-xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 id="confirm-title" class="text-base font-bold text-slate-900 mb-2">Confirmation</h3>
+            <p id="confirm-message" class="text-xs text-slate-600 mb-6">Êtes-vous sûr de vouloir effectuer cette action ?</p>
+            <div class="flex justify-center space-x-3">
+                <button onclick="closeConfirmModal(false)" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">Annuler</button>
+                <button id="confirm-btn-yes" onclick="closeConfirmModal(true)" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition shadow-xs">Confirmer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Competence Input Modal -->
+    <div id="competence-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+            <h3 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-plus-circle text-brand-600"></i>
+                <span>Ajouter une Compétence</span>
+            </h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Code Compétence (ex: C3) :</label>
+                    <input type="text" id="comp-code-input" placeholder="C3" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-bold text-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Libellé de la Compétence :</label>
+                    <input type="text" id="comp-name-input" placeholder="Libellé de la compétence..." class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-900 focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3 pt-4 border-t border-slate-100 mt-4">
+                <button type="button" onclick="closeCompetenceModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">Annuler</button>
+                <button type="button" onclick="saveNewCompetence()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold transition shadow-xs">Ajouter</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center space-x-3 z-50 transition-all duration-300 transform translate-y-20 opacity-0 pointer-events-none">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toast-message" class="text-xs font-semibold">Message de notification</span>
+    </div>
+
+    <script>
+
+        // Fonction utilitaire pour calculer le contraste (texte noir ou blanc)
+        function getContrastTextColor(hexColor) {
+            if (!hexColor) return '#ffffff';
+            let c = hexColor.trim();
+            if (c.startsWith('#')) c = c.substring(1);
+            if (c.length === 3) {
+                c = c.split('').map(char => char + char).join('');
+            }
+            if (c.length !== 6) return '#ffffff';
+            
+            const r = parseInt(c.substr(0, 2), 16);
+            const g = parseInt(c.substr(2, 2), 16);
+            const b = parseInt(c.substr(4, 2), 16);
+            
+            // Formule YIQ de luminance perçue
+            const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+            return yiq >= 128 ? '#000000' : '#ffffff';
+        }
+
+                // Fonction globale qui traite toutes les équipes d'un coup
+        function processTeamsColors() {
+            if (!Array.isArray(teams)) return;
+            teams.forEach(team => {
+                const col = team.color || '#0070c0';
+                // On stocke directement le résultat dans l'objet équipe
+                team.textColor = getContrastTextColor(col);
+            });
+        }
+        /* =========================================================
+           SUPABASE CONFIGURATION & REALTIME SETUP
+           ========================================================= */
+       const SUPABASE_URL = "https://mqleuktxcsljkqzopbqs.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_UAsK394sB-aVt7wlyEt2WQ_TBdX6BIa";
+        let supabaseClient = null;
+        let isSupabaseConnected = false;
+        let syncTimeout = null;
+        let autosaveTimeout = null; // <-- AJOUTÉ : Pour gérer le délai de l'autosave
+
+        try {
+            if (window.supabase && typeof window.supabase.createClient === 'function') {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            }
+        } catch (err) {
+            console.warn("Initialisation Supabase en mode secours offline:", err);
+        }
+
+        /* Application State Variables */
+        let competitionYear = 2026;
+        let teams = [];
+        let competences = [];
+        let evaluations = {};
+        let activeTeamId = null;
+        let isJuryMode = true;
+        let confirmResolver = null;
+        let selectedImportType = 'all';
+
+
+        let barChartInstance = null;
+        let radarChartInstance = null;
+
+        /* =========================================================
+           FONCTIONS DE SAUVEGARDE AUTOMATIQUE
+           ========================================================= */
+        function triggerAutosave() {
+            showSaveStatus("En cours de saisie...", "#F59E0B"); // Orange
+            clearTimeout(autosaveTimeout);
+            // Attend 1,5 seconde d'inactivité avant d'envoyer à Supabase
+            autosaveTimeout = setTimeout(autoSaveToSupabase, 1500); 
+        }
+
+        async function autoSaveToSupabase() {
+            if (!supabaseClient || !activeTeamId) return;
+
+            let cleanTeamId = null;
+            if (typeof activeTeamId === 'string') {
+                cleanTeamId = parseInt(activeTeamId.replace(/^\D+/g, ''), 10);
+            } else {
+                cleanTeamId = parseInt(activeTeamId, 10);
+            }
+
+            if (isNaN(cleanTeamId)) return;
+
+            const donneesEquipe = evaluations[activeTeamId] || {};
+
+            // PAYLOAD SÉCURISÉ AVEC TOUTES LES CLÉS REQUISES
+            const payload = {
+                team_id: cleanTeamId,
+                indicator_id: "principal", // Obligatoire pour la ligne du bas
+                jury_id: "jury_session",    // Obligatoire (losange plein)
+                level: 1,                   // Obligatoire (losange plein)
+                scores: donneesEquipe,
+                updated_at: new Date().toISOString()
+            };
+
+            try {
+                const { error } = await supabaseClient
+                    .from('evaluations')
+                    .upsert([payload], { onConflict: 'jury_id,team_id,indicator_id' }); // Résout l'erreur unique_jury_team_indicator
+
+                if (error) {
+                    console.error("❌ Erreur AutoSave :", error.message);
+                    showSaveStatus("Erreur", "#EF4444");
+                } else {
+                    showSaveStatus("Enregistré", "#10B981");
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function showSaveStatus(message, color) {
+            let statusDiv = document.getElementById('autosave-status');
+            if (!statusDiv) {
+                statusDiv = document.createElement('div');
+                statusDiv.id = 'autosave-status';
+                statusDiv.className = 'fixed bottom-4 right-4 px-3 py-1 rounded text-xs font-semibold text-white shadow-md transition-all duration-300 z-50';
+                document.body.appendChild(statusDiv);
+            }
+            statusDiv.style.backgroundColor = color;
+            statusDiv.innerText = message;
+            statusDiv.style.opacity = '1';
+            if (color === "#10B981") {
+                setTimeout(() => { statusDiv.style.opacity = '0'; }, 2000);
+            }
+        }
+        const COLOR_LEVELS = {
+            0: { name: 'Insuffisant', bg: 'bg-rose-600', text: 'text-white', ratio: 0.0, activeClass: 'ring-4 ring-rose-400 font-black scale-105' },
+            1: { name: 'Fragile', bg: 'bg-amber-500', text: 'text-white', ratio: 1/3, activeClass: 'ring-4 ring-amber-400 font-black scale-105' },
+            2: { name: 'Satisfaisant', bg: 'bg-emerald-500', text: 'text-white', ratio: 2/3, activeClass: 'ring-4 ring-emerald-400 font-black scale-105' },
+            3: { name: 'Très Bon', bg: 'bg-emerald-800', text: 'text-white', ratio: 1.0, activeClass: 'ring-4 ring-emerald-600 font-black scale-105' }
+        };
+            function renderEvaluationCriterionHtml(compIdx, critIdx, crit, teamId) {
+                let critMaxPts = parseFloat(crit.maxPoints) || 0;
+                let totalIndPoints = (crit.indicators || []).reduce((acc, ind) => acc + (parseFloat(ind.points) || 1), 0);
+                
+                // Calcul du score du critère pour cette équipe
+                let critScore = 0;
+                (crit.indicators || []).forEach((ind, indIdx) => {
+                    let level = getTeamIndicatorLevel(teamId, compIdx, critIdx, indIdx);
+                    let ratio = COLOR_LEVELS[level] ? COLOR_LEVELS[level].ratio : 0;
+                    let indPts = parseFloat(ind.points) || 1;
+                    critScore += ratio * indPts;
+                });
+                
+                if (totalIndPoints > 0 && critMaxPts > 0) {
+                    critScore = (critScore / totalIndPoints) * critMaxPts;
+                }
+
+                return `
+                    <div class="bg-rose-50/70 border border-rose-200 rounded-2xl p-4 space-y-4 shadow-sm mb-4">
+                        <!-- En-tête du critère épuré (sans le badge "CRITÈRE") -->
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-rose-200/80 pb-3">
+                            <div class="font-bold text-slate-800 text-sm md:text-base flex-1">
+                                ${escapeHtml(crit.name)}
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <div class="text-right px-2">
+                                    <div class="text-xs font-black text-slate-900">${critMaxPts} pts</div>
+                                </div>
+                                <div class="flex items-center space-x-3 bg-white px-3 py-1.5 rounded-xl border border-rose-200 shadow-2xs">
+                                    <div class="text-right">
+                                        <div class="text-sm font-black text-rose-600">${critScore.toFixed(2)} / ${critMaxPts}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Liste des indicateurs -->
+                        <div class="space-y-3">
+                            ${(crit.indicators || []).map((ind, indIdx) => {
+                                let currentLevel = getTeamIndicatorLevel(teamId, compIdx, critIdx, indIdx);
+                                let isIndSelected = currentLevel !== undefined && currentLevel !== null && currentLevel !== '';
+                                return `
+                                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-white p-3 rounded-xl border ${isIndSelected ? 'border-amber-300 ring-1 ring-amber-300' : 'border-rose-100'} shadow-2xs transition-all">
+                                        <div class="flex-1 text-xs font-medium text-slate-800">
+                                            ${escapeHtml(ind.name)}
+                                        </div>
+                                        <div class="flex items-center space-x-3 self-end md:self-auto">
+                                            <span class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-md">${ind.points} pts</span>
+                                            <div class="flex items-center space-x-1.5">
+                                                ${[0, 1, 2, 3].map(lvl => {
+                                                    let cfg = COLOR_LEVELS[lvl];
+                                                    let isSelected = (currentLevel === lvl);
+                                                    let activeRing = isSelected ? 'ring-4 ring-slate-900 scale-110 font-bold shadow-md' : 'opacity-70 hover:opacity-100';
+                                                    return `
+                                                        <button onclick="setTeamIndicatorLevel('${teamId}', ${compIdx}, ${critIdx}, ${indIdx}, ${lvl})" 
+                                                            title="${cfg.name}"
+                                                            class="w-7 h-7 rounded-full ${cfg.bg} transition-all transform ${activeRing} flex items-center justify-center text-white text-xs">
+                                                            ${isSelected ? '<i class="fa-solid fa-check text-[10px]"></i>' : ''}
+                                                        </button>
+                                                    `;
+                                                }).join('')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+        const OFFICIAL_GRID = [
+            {
+                id: 'comp_c1',
+                code: 'C1',
+                name: 'Analyser les conditions de l’opération et son contexte',
+                criteria: [
+                    {
+                        id: 'crit_c1_1',
+                        name: 'Les informations nécessaires sont recueillies',
+                        maxPoints: 5,
+                        indicators: [
+                            { id: 'ind_c1_1_1', name: 'Les documents sont exploités avec pertinence (autonomie de l\'équipe pendant l\'épreuve)', points: 5 }
+                        ]
+                    },
+                    {
+                        id: 'crit_c1_2',
+                        name: 'Les contraintes techniques et d’exécution sont repérées',
+                        maxPoints: 5,
+                        indicators: [
+                            { id: 'ind_c1_2_1', name: 'Les contraintes techniques de pose sont repérées (pose encastrée, cloison CFort/CFaible…)', points: 5 }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'comp_c2',
+                code: 'C2',
+                name: 'Organiser l\'opération dans son contexte',
+                criteria: [
+                    {
+                        id: 'crit_c2_1',
+                        name: 'Après inventaire, les matériels, équipements et outillages manquants sont listés',
+                        maxPoints: 2.5,
+                        indicators: [
+                            { id: 'ind_c2_1_1', name: 'Le manque éventuel de matériel est signalé dans la première demi-heure de l\'épreuve.', points: 2.5 }
+                        ]
+                    },
+                    {
+                        id: 'crit_c2_2',
+                        name: 'Les activités sont organisées de manière chronologique',
+                        maxPoints: 2.5,
+                        indicators: [
+                            { id: 'ind_c2_2_1', name: 'Observation du travail des candidats.', points: 2.5 }
+                        ]
+                    },
+                    {
+                        id: 'crit_c2_3',
+                        name: 'Le poste de travail est organisé avec ergonomie',
+                        maxPoints: 2.5,
+                        indicators: [
+                            { id: 'ind_c2_3_1', name: 'Le poste de travail et les outils sont rangés.', points: 2.5 }
+                        ]
+                    },
+                    {
+                        id: 'crit_c2_4',
+                        name: 'Le lieu d\'activité est restitué quotidiennement propre et en ordre',
+                        maxPoints: 2.5,
+                        indicators: [
+                            { id: 'ind_c2_4_1', name: 'Le lieu d\'activité est nettoyé régulièrement en fonction des activités.', points: 1.25 },
+                            { id: 'ind_c2_4_2', name: 'Le lieu d\'activité est nettoyé correctement avant la mise en service.', points: 1.25 }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'comp_c4',
+                code: 'C4',
+                name: 'Réaliser une installation de manière éco-responsable',
+                criteria: [
+                    {
+                        id: 'crit_c4_1',
+                        name: 'Les matériels sont posés conformément aux prescriptions et règles de l\'art',
+                        maxPoints: 10,
+                        indicators: [
+                            { id: 'ind_c4_1_1', name: 'Tous les niveaux sont corrects.', points: 1 },
+                            { id: 'ind_c4_1_2', name: 'Toutes les côtes d\'installation sont respectées.', points: 1 },
+                            { id: 'ind_c4_1_3', name: 'Tous les matériels sont correctement fixés.', points: 1 },
+                            { id: 'ind_c4_1_4', name: 'Tous les appareillages sont correctement positionnés. OUVRIR LES CAPOTS DES GOULOTTES', points: 1 },
+                            { id: 'ind_c4_1_5', name: 'Pose conforme du cloisonnement Courant Fort / Faible dans les goulottes', points: 1 },
+                            { id: 'ind_c4_1_6', name: 'Tous les composants du coffret électrique sont positionnés correctement (conforme à l\'implantation du coffret électrique).', points: 1 },
+                            { id: 'ind_c4_1_7', name: 'Les différents composants du coffret électrique sont repérés.', points: 1 },
+                            { id: 'ind_c4_1_8', name: 'Les différents composants de la baie de brassage sont repérés.', points: 1 },
+                            { id: 'ind_c4_1_9', name: 'Les différents câbles sont repérés.', points: 1 },
+                            { id: 'ind_c4_1_10', name: 'La prise RJ45 A1 est repérée.', points: 1 }
+                        ]
+                    },
+                    {
+                        id: 'crit_c4_2',
+                        name: 'Le façonnage est réalisé conformément aux prescriptions et règles de l\'art',
+                        maxPoints: 10,
+                        indicators: [
+                            { id: 'ind_c4_2_1', name: 'Mise en forme esthétique des conducteurs dans le tableau.', points: 2.5 },
+                            { id: 'ind_c4_2_2', name: 'Mise en forme esthétique des câbles dans les goulottes.', points: 2.5 },
+                            { id: 'ind_c4_2_3', name: 'La découpe des goulottes est propre.', points: 2.5 },
+                            { id: 'ind_c4_2_4', name: 'Mise en forme esthétique de la baie de brassage.', points: 2.5 }
+                        ]
+                    },
+                    {
+                        id: 'crit_c4_3',
+                        name: 'Les câblages et les raccordements sont réalisés conformément aux prescriptions et règles de l\'art',
+                        maxPoints: 15,
+                        indicators: [
+                            { id: 'ind_c4_3_1', name: 'Câblage du circuit de l\'alarme incendie est conforme au schéma.', points: 1 },
+                            { id: 'ind_c4_3_2', name: 'Câblage du circuit de l\'éclairage de sécurité est conforme au schéma.', points: 1 },
+                            { id: 'ind_c4_3_3', name: 'Câblage du circuit de l\'éclairage DALI est conforme au schéma.', points: 1 },
+                            { id: 'ind_c4_3_4', name: 'Câblage de la baie informatique est conforme au schéma.', points: 1 },
+                            { id: 'ind_c4_3_5', name: 'Câblage du coffret électrique est conforme au schéma.', points: 2 },
+                            { id: 'ind_c4_3_6', name: 'Les conducteurs sous les protections sont bien organisés, conformément aux règles de l\'art.', points: 1 },
+                            { id: 'ind_c4_3_7', name: 'Serrages des connexions électriques correctement exécutés.', points: 2 },
+                            { id: 'ind_c4_3_8', name: 'Connexions électriques correctement exécutées (cuivre non visible, pas de serrage sur isolant).', points: 1.5 },
+                            { id: 'ind_c4_3_9', name: 'Bon dénudage des conducteurs (longueur, isolant bien coupé et cuivre non marqué).', points: 1.5 },
+                            { id: 'ind_c4_3_10', name: 'Couleurs des conducteurs respectées.', points: 1 },
+                            { id: 'ind_c4_3_11', name: 'Câblage des BAES est conforme.', points: 0.5 },
+                            { id: 'ind_c4_3_12', name: 'Câblage des DM et Alarme incendie est conforme.', points: 0.5 },
+                            { id: 'ind_c4_3_13', name: 'Câblage de la RJ45 est conforme.', points: 0.5 },
+                            { id: 'ind_c4_3_14', name: 'Câblage du BUS My Home est conforme.', points: 0.5 }
+                        ]
+                    },
+                    {
+                        id: 'crit_c4_4',
+                        name: 'Les réalisations respectent les contraintes liées à l\'efficacité énergétique',
+                        maxPoints: 2.5,
+                        indicators: [
+                            { id: 'ind_c4_4_1', name: 'Pas de détérioration de l\'étanchéité au niveau des boîtes d\'encastrement.', points: 2.5 }
+                        ]
+                    },
+                    {
+                        id: 'crit_c4_5',
+                        name: 'Les déchets sont triés et évacués de manière sélective',
+                        maxPoints: 2.5,
+                        indicators: [
+                            { id: 'ind_c4_5_1', name: 'Le tri est conforme à la signalétique présente sur site.', points: 2.5 }
+                        ]
+                    },
+                    {
+                        id: 'crit_c4_6',
+                        name: 'Le consommable est utilisé sans gaspillage',
+                        maxPoints: 2.5,
+                        indicators: [
+                            { id: 'ind_c4_6_1', name: 'Pas de grande chute des conducteurs et câbles.', points: 2.5 }
+                        ]
+                    },
+                    {
+                        id: 'crit_c4_7',
+                        name: 'Les règles de santé et de sécurité au travail sont respectées',
+                        maxPoints: 2.5,
+                        indicators: [
+                            { id: 'ind_c4_7_1', name: 'Le travail est réalisé sans prendre de risque (chute, coupure, inhalation de poussière...).', points: 1.25 },
+                            { id: 'ind_c4_7_2', name: 'La tenue professionnelle est adaptée (Chaussures, gants et vêtement professionnel).', points: 1.25 }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'comp_c5',
+                code: 'C5',
+                name: 'Contrôler les grandeurs caractéristiques de l\'installation',
+                criteria: [
+                    {
+                        id: 'crit_c5_1',
+                        name: 'Les mesures (électriques, dimensionnelles, ...) sont réalisées',
+                        maxPoints: 5,
+                        indicators: [
+                            { id: 'ind_c5_1_1', name: 'Le compte rendu est complété correctement.', points: 0.5 },
+                            { id: 'ind_c5_1_2', name: 'Vérification de la continuité de la PE (choix appareil, valeurs, mesures).', points: 1 },
+                            { id: 'ind_c5_1_3', name: 'Vérification d\'absence de court-circuit.', points: 1 },
+                            { id: 'ind_c5_1_4', name: 'Vérification des tensions aux bornes des protections.', points: 1 },
+                            { id: 'ind_c5_1_5', name: 'Vérification de la mesure de la boucle de terre.', points: 0.5 },
+                            { id: 'ind_c5_1_6', name: 'Contrôle des DDR.', points: 0.5 },
+                            { id: 'ind_c5_1_7', name: 'Contrôle de l\'installation courant faible (télécommunication).', points: 0.5 }
+                        ]
+                    },
+                    {
+                        id: 'crit_c5_2',
+                        name: 'Les grandeurs contrôlées sont correctement interprétées au regard des prescriptions',
+                        maxPoints: 5,
+                        indicators: [
+                            { id: 'ind_c5_2_1', name: 'Résultats interprétés pour la continuité PE.', points: 1 },
+                            { id: 'ind_c5_2_2', name: 'Résultats interprétés pour l\'absence de court-circuit.', points: 1 },
+                            { id: 'ind_c5_2_3', name: 'Résultats interprétés pour les tensions d\'alimentation.', points: 1 },
+                            { id: 'ind_c5_2_4', name: 'Résultats interprétés pour la boucle de terre.', points: 0.5 },
+                            { id: 'ind_c5_2_5', name: 'Résultats interprétés pour les DDR.', points: 0.75 },
+                            { id: 'ind_c5_2_6', name: 'Résultats interprétés pour le courant faible.', points: 0.75 }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'comp_c6',
+                code: 'C6',
+                name: 'Régler, paramétrer les matériels de l\'installation',
+                criteria: [
+                    {
+                        id: 'crit_c6_1',
+                        name: 'Les réglages sont réalisés conformément aux prescriptions',
+                        maxPoints: 5,
+                        indicators: [
+                            { id: 'ind_c6_1_1', name: 'Scan des appareils effectué sur le BUS SCS et configuration des pièces.', points: 1 },
+                            { id: 'ind_c6_1_2', name: 'Configuration Legrand ERPconnecté conforme (télécommande BAES visible).', points: 1 },
+                            { id: 'ind_c6_1_3', name: 'Configuration Legrand Close up conforme.', points: 1 },
+                            { id: 'ind_c6_1_4', name: 'Configuration HOME+Project conforme.', points: 1 },
+                            { id: 'ind_c6_1_5', name: 'Configuration HOME Control conforme.', points: 1 }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'comp_c7',
+                code: 'C7',
+                name: 'Valider le fonctionnement de l\'installation',
+                criteria: [
+                    {
+                        id: 'crit_c7_1',
+                        name: 'Le fonctionnement est conforme aux spécifications du cahier des charges (efficacité énergétique)',
+                        maxPoints: 20,
+                        indicators: [
+                            { id: 'ind_c7_1_1', name: 'Enfoncement DM actionne DSAF, DVAF et éclairages de sécurité.', points: 2 },
+                            { id: 'ind_c7_1_2', name: 'Éclairage de sécurité BAES conforme à la norme (coupure D1).', points: 2 },
+                            { id: 'ind_c7_1_3', name: 'Télécommande BAES (extinction / rallumage manuel).', points: 2 },
+                            { id: 'ind_c7_1_4', name: 'Éclairage bureau piloté par S3.', points: 2 },
+                            { id: 'ind_c7_1_5', name: 'Éclairage accueil piloté par S2.', points: 2 },
+                            { id: 'ind_c7_1_6', name: 'Éclairage local technique piloté par S2 et S1.', points: 2 },
+                            { id: 'ind_c7_1_7', name: 'Scénario 1 conforme.', points: 2 },
+                            { id: 'ind_c7_1_8', name: 'Scénario 2 conforme.', points: 2 },
+                            { id: 'ind_c7_1_9', name: 'Scénario 3 conforme.', points: 2 },
+                            { id: 'ind_c7_1_10', name: 'Prises RJ45 fonctionnelles.', points: 2 }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'comp_c12',
+                code: 'C12',
+                name: 'Communiquer entre professionnels sur l\'opération',
+                criteria: [
+                    {
+                        id: 'crit_c12_1',
+                        name: 'Les informations nécessaires à la communication sont identifiées',
+                        maxPoints: 3,
+                        indicators: [
+                            { id: 'ind_c12_1_1', name: 'Communication entre le binôme permettant un avancement efficace.', points: 1.5 },
+                            { id: 'ind_c12_1_2', name: 'Répartition des tâches équilibrée.', points: 1.5 }
+                        ]
+                    },
+                    {
+                        id: 'crit_c12_2',
+                        name: 'Les difficultés sont remontées à la hiérarchie',
+                        maxPoints: 2,
+                        indicators: [
+                            { id: 'ind_c12_2_1', name: 'Les candidats demandent de l\'aide en cas de souci technique.', points: 2 }
+                        ]
+                    }
+                ]
+            },
+            {
+                id: 'comp_c13',
+                code: 'C13',
+                name: 'Communiquer avec le client/usager sur l\'opération',
+                criteria: [
+                    {
+                        id: 'crit_c13_1',
+                        name: 'Les usages et le fonctionnement de l\'installation sont maîtrisés par le client/l\'usager',
+                        maxPoints: 5,
+                        indicators: [
+                            { id: 'ind_c13_1_1', name: 'Explication détaillée du fonctionnement (Alarme, Sécurité, DALI, Baie).', points: 2.5 },
+                            { id: 'ind_c13_1_2', name: 'Explication du paramétrage du point de commande S2.', points: 2.5 }
+                        ]
+                    }
+                ]
+            }
+        ];
+
+        const DEFAULT_TEAMS = [
+            {
+                id: 'team_1',
+                name: 'EQUIPE 1',
+                color: '#0070c0',
+                school: 'Etablissement 1',
+                members: 'Candidat 1\nCandidat 2',
+                supervisor: 'Surveillant 1',
+                logo: ''
+            },
+            {
+                id: 'team_2',
+                name: 'EQUIPE 2',
+                color: '#43a047',
+                school: 'Etablissement 2',
+                members: 'Candidat 3\nCandidat 4',
+                supervisor: 'Surveillant 2',
+                logo: ''
+            },
+            {
+                id: 'team_3',
+                name: 'EQUIPE 3',
+                color: '#f57c00',
+                school: 'Etablissement 3',
+                members: 'Candidat 5\nCandidat 6',
+                supervisor: 'Surveillant 3',
+                logo: ''
+            }
+        ];
+
+        window.onload = async function() {
+            loadDataFromStorage();
+
+            if (teams.length === 0) {
+                teams = JSON.parse(JSON.stringify(DEFAULT_TEAMS));
+            }
+            if (competences.length === 0) {
+                competences = JSON.parse(JSON.stringify(OFFICIAL_GRID));
+            }
+            if (teams.length > 0 && !activeTeamId) {
+                activeTeamId = teams[0].id;
+            }
+
+            updateYearDisplays();
+            renderAllViews();
+
+            // Setup Supabase Realtime Channel
+            if (supabaseClient) {
+                setupSupabaseRealtime();
+                await syncWithSupabase(false);
+            } else {
+                updateSupabaseBadge(false, "Mode Local (Hors-ligne)");
+            }
+        };
+
+        function setupSupabaseRealtime() {
+            try {
+                const channel = supabaseClient.channel('melec_eval_channel');
+                channel.on('broadcast', { event: 'state_update' }, payload => {
+                    if (payload && payload.payload) {
+                        applyRemoteState(payload.payload, false);
+                    }
+                }).subscribe(status => {
+                    if (status === 'SUBSCRIBED') {
+                        isSupabaseConnected = true;
+                        updateSupabaseBadge(true, "Supabase En Direct");
+                    } else {
+                        isSupabaseConnected = false;
+                        updateSupabaseBadge(false, "Supabase Déconnecté");
+                    }
+                });
+            } catch (e) {
+                console.warn("Échec mise en place canal Realtime:", e);
+            }
+        }
+
+        async function syncWithSupabase() {
+            let teamIdVisual = activeTeamId;
+
+            if (!teamIdVisual) {
+                const teamSelect = document.getElementById("eval-team-select");
+                if (teamSelect && teamSelect.value) {
+                    teamIdVisual = teamSelect.value;
+                    activeTeamId = teamIdVisual;
+                }
+            }
+
+            let dbTeamId = null;
+            if (teams && teams.length > 0) {
+                let targetTeam = teams.find(t => String(t.id) === String(teamIdVisual));
+                if (!targetTeam && typeof teamIdVisual === 'string' && teamIdVisual.startsWith('team_')) {
+                    const idx = parseInt(teamIdVisual.replace('team_', ''), 10) - 1;
+                    if (teams[idx]) targetTeam = teams[idx];
+                }
+                if (targetTeam) dbTeamId = parseInt(targetTeam.id, 10);
+            }
+
+            if (!dbTeamId && teamIdVisual) {
+                dbTeamId = parseInt(String(teamIdVisual).replace(/^\D+/g, ''), 10);
+            }
+
+            if (!dbTeamId || isNaN(dbTeamId)) {
+                console.error("❌ ID d'équipe introuvable.");
+                return;
+            }
+
+            const donneesEquipe = evaluations[teamIdVisual] || {};
+
+            const payload = {
+                team_id: dbTeamId,
+                indicator_id: "principal", // Obligatoire pour correspondre à indicators
+                jury_id: "jury_session",    // Obligatoire (losange plein)
+                level: 1,                   // Obligatoire (losange plein)
+                scores: donneesEquipe,
+                updated_at: new Date().toISOString()
+            };
+
+            if (supabaseClient) {
+                const { error } = await supabaseClient
+                    .from('evaluations')
+                    .upsert([payload], { onConflict: 'jury_id,team_id,indicator_id' }); // Correction de l'index de conflit
+                
+                if (error) {
+                    console.error("❌ Erreur Synchro :", error.message);
+                } else {
+                    console.log("✅ Synchro réussie !");
+                }
+            }
+        }
+
+        async function syncTeamsToSupabase() {
+            if (!supabaseClient) return;
+
+            // Liste corrigée : l'établissement va dans 'establishment' et 'EQUIPE X' dans 'name'
+            const equipesLocales = [
+                { id: 1, name: "EQUIPE 1", establishment: "Les Grippeaux - PARTHENAY", candidates: "Floyd GUILLON • Swan BONNEAU", color: "#34495e" },
+                { id: 2, name: "EQUIPE 2", establishment: "Léonard de Vinci - PERIGUEUX", candidates: "Gassan RABBOUH • Alexandre ZINTCHOUK", color: "#70ad47" },
+                { id: 3, name: "EQUIPE 3", establishment: "Maryse Bastié - LIMOGES", candidates: "Badis BENFARESSE • Lucas DAURE", color: "#ffc000" },
+                { id: 4, name: "EQUIPE 4", establishment: "Paul Guérin - NIORT", candidates: "Nino BREGEON • Fayel MOHAMED", color: "#ed7d31" },
+                { id: 5, name: "EQUIPE 5", establishment: "Gaston Crampe - AIRE SUR L'ADOUR", candidates: "Jérémie LABUTHE • Ali SYLLA", color: "#7030a0" },
+                { id: 6, name: "EQUIPE 6", establishment: "Les Grippeaux - PARTHENAY", candidates: "Kylian DE SOUSA • Maximin PROUST", color: "#c00000" },
+                { id: 7, name: "EQUIPE 7", establishment: "Georges Cabanis - BRIVE", candidates: "Enzo MATHIEU JOANNY • Alexis WINGLARZ", color: "#000000" },
+                { id: 8, name: "EQUIPE 8", establishment: "Léonard de Vinci - PERIGUEUX", candidates: "André KOLIE • Maxime NAKONECZNY", color: "#4472c4" },
+                { id: 9, name: "EQUIPE 9", establishment: "Charles Peguy - EYSINES", candidates: "Nathan GARRIGUE • Jean BARRAU-DELACHAPELLE", color: "#5b9bd5" },
+                { id: 10, name: "EQUIPE 10", establishment: "Gustave Eiffel - BORDEAUX", candidates: "Jules LAMBERT • Matteo SOURY-DOUSSE", color: "#7f8c8d" },
+                { id: 11, name: "EQUIPE 11", establishment: "Paul Guérin - NIORT", candidates: "William PARRETT • Emmanuel TICKIE", color: "#ffff00" },
+                { id: 12, name: "EQUIPE 12", establishment: "Jean Monnet - LIBOURNE", candidates: "Félix DUCASSE • Thibault AMIGUET", color: "#e040fb" }
+            ];
+
+            try {
+                const { error } = await supabaseClient
+                    .from('teams')
+                    .upsert(equipesLocales, { onConflict: 'id' });
+
+                if (error) {
+                    console.error("❌ Erreur lors de la synchro des équipes :", error.message);
+                } else {
+                    console.log("✅ Les 12 équipes ont été corrigées sur Supabase !");
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+        
+        async function pushStateToSupabase(broadcastOnly = false) {
+            
+            const statePayload = {
+                competitionYear,
+                teams,
+                competences,
+                evaluations,
+                updatedAt: new Date().toISOString()
+            };
+
+            if (!supabaseClient) return;
+
+            try {
+        // On garde uniquement le Broadcast pour rafraîchir les autres écrans en direct
+        supabaseClient.channel('melec_eval_channel').send({
+            type: 'broadcast',
+            event: 'state_update',
+            payload: statePayload
+        });
+
+        // Nettoyage : L'upsert sur la table 'eval_state' a été supprimé
+
+        isSupabaseConnected = true;
+        updateSupabaseBadge(true, "Supabase En Direct");
+    } catch (err) {
+        updateSupabaseBadge(false, "Hors-ligne (Local Storage)");
+    }
+}
+
+        function applyRemoteState(remotePayload, notify = false) {
+            if (!remotePayload) return;
+            if (remotePayload.competitionYear) competitionYear = remotePayload.competitionYear;
+            if (remotePayload.teams) teams = remotePayload.teams;
+            if (remotePayload.competences) competences = remotePayload.competences;
+            if (remotePayload.evaluations) evaluations = remotePayload.evaluations;
+
+            if (teams.length > 0 && !teams.some(t => t.id === activeTeamId)) {
+                activeTeamId = teams[0].id;
+            }
+
+            saveDataToStorage();
+            updateYearDisplays();
+            renderAllViews();
+            if (notify) showToast("Données mises à jour depuis Supabase !");
+        }
+
+        function updateSupabaseBadge(connected, text) {
+            const badge = document.getElementById('supabase-status-badge');
+            const textEl = document.getElementById('supabase-status-text');
+            if (!badge || !textEl) return;
+
+            if (connected) {
+                badge.className = "cursor-pointer flex items-center space-x-1.5 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-emerald-900 transition";
+                textEl.innerText = text || "Supabase Direct";
+            } else {
+                badge.className = "cursor-pointer flex items-center space-x-1.5 bg-amber-950/80 border border-amber-500/40 text-amber-300 px-2.5 py-1 rounded-lg text-xs font-bold hover:bg-amber-900 transition";
+                textEl.innerText = text || "Hors-ligne";
+            }
+        }
+
+        function saveDataToStorage() {
+            localStorage.setItem('eval_app_year', competitionYear);
+            localStorage.setItem('eval_app_teams', JSON.stringify(teams));
+            localStorage.setItem('eval_app_competences', JSON.stringify(competences));
+            localStorage.setItem('eval_app_evaluations', JSON.stringify(evaluations));
+        }
+
+        function loadDataFromStorage() {
+            try {
+                const y = localStorage.getItem('eval_app_year');
+                const t = localStorage.getItem('eval_app_teams');
+                const c = localStorage.getItem('eval_app_competences');
+                const e = localStorage.getItem('eval_app_evaluations');
+                if (y) competitionYear = parseInt(y, 10) || 2026;
+                if (t) teams = JSON.parse(t);
+                if (c) competences = JSON.parse(c);
+                if (e) evaluations = JSON.parse(e);
+            } catch (err) {
+                console.error("Erreur de chargement du stockage local:", err);
+            }
+        }
+
+        function updateCompetitionYear(val) {
+            competitionYear = parseInt(val, 10) || 2026;
+            updateYearDisplays();
+            pushStateToSupabase();
+            renderPosters();
+            renderResults();
+            showToast(`Année du concours mise à jour : Session ${competitionYear}`);
+        }
+
+        function updateYearDisplays() {
+            const input = document.getElementById('header-year-input');
+            if (input) input.value = competitionYear;
+            document.querySelectorAll('.display-competition-year').forEach(el => {
+                el.innerText = competitionYear;
+            });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function toggleJuryMode() {
+            if (isJuryMode) {
+                openPasswordModal(); // Ouvre la modale pour entrer le mot de passe organisateur
+            } else {
+                isJuryMode = true;
+                applyJuryModeUI();
+                switchTab('evaluation');
+                showToast("Mode Jury Activé.");
+            }
+        }
+
+        function applyJuryModeUI() {
+            const btnText = document.getElementById('jury-mode-btn-text');
+            const adminElements = document.querySelectorAll('.admin-only');
+            const scoreBoxes = document.querySelectorAll('.score-display-box');
+
+            if (isJuryMode) {
+                // En mode jury : on masque tout ce qui est admin/scores
+                if (btnText) btnText.innerText = "Mode Organisateur";
+                adminElements.forEach(el => el.classList.add('hidden'));
+                scoreBoxes.forEach(el => el.classList.add('hidden'));
+            } else {
+                // En mode organisateur : on réaffiche tout
+                if (btnText) btnText.innerText = "Mode Jury";
+                adminElements.forEach(el => el.classList.remove('hidden'));
+                scoreBoxes.forEach(el => el.classList.remove('hidden'));
+            }
+        }
+
+        function openPasswordModal() {
+            const modal = document.getElementById('password-modal');
+            const input = document.getElementById('organizer-password-input');
+            input.value = '';
+            modal.classList.remove('hidden');
+            input.focus();
+        }
+
+        function closePasswordModal() {
+            document.getElementById('password-modal').classList.add('hidden');
+        }
+
+        function verifyOrganizerPassword(e) {
+            e.preventDefault();
+            const val = document.getElementById('organizer-password-input').value;
+            if (val === "ChallengeMELEC" || val === "admin") {
+                isJuryMode = false;
+                applyJuryModeUI();
+                closePasswordModal();
+                showToast("Mode Organisateur Activé.");
+                renderEvaluationWorkspace();
+            } else {
+                showToast("Mot de passe incorrect.");
+                document.getElementById('organizer-password-input').value = '';
+                document.getElementById('organizer-password-input').focus();
+            }
+        }
+
+        function renderAllViews() {
+            renderTeamsGrid();
+            renderCompetencesEditor();
+            renderEvaluationSelect();
+            renderEvaluationWorkspace();
+            renderPosters();
+            renderResults();
+        }
+
+        function switchTab(tabName) {
+            if (isJuryMode && tabName !== 'evaluation') {
+                showToast("En mode jury, seul l'onglet d'évaluation est accessible.");
+                return;
+            }
+
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('bg-brand-50', 'text-brand-700');
+                btn.classList.add('text-slate-600');
+            });
+
+            const activeContent = document.getElementById(`tab-${tabName}`);
+            const activeBtn = document.getElementById(`tab-btn-${tabName}`);
+
+            if (activeContent) activeContent.classList.remove('hidden');
+            if (activeBtn) {
+                activeBtn.classList.remove('text-slate-600');
+                activeBtn.classList.add('bg-brand-50', 'text-brand-700');
+            }
+
+            if (tabName === 'posters') renderPosters();
+            if (tabName === 'results') renderResults();
+        }
+
+        function renderTeamsGrid() {
+            const container = document.getElementById('teams-grid');
+            if (!container) return;
+            container.innerHTML = '';
+
+            teams.forEach(team => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between hover:shadow-md transition';
+
+                const membersList = (team.members || '').split(/\n|,/).map(m => m.trim()).filter(m => m);
+                const teamColor = team.color || '#0070c0';
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <!-- On met juste la classe et l'ID/la structure -->
+                            <span class="team-badge px-3 py-1 rounded-md font-black text-xs uppercase tracking-wider shadow-xs" style="background-color: ${teamColor};">
+                                ${escapeHtml(team.name)}
+                            </span>
+                            <div class="flex space-x-1">
+                                <button onclick="openTeamModal('${team.id}')" class="p-1.5 text-slate-400 hover:text-brand-600 transition" title="Éditer">
+                                    <i class="fa-solid fa-pen-to-square"></i>
+                                </button>
+                                <button onclick="deleteTeam('${team.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 transition" title="Supprimer">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        ${team.school ? `<div class="text-xs font-bold text-slate-800 mb-2 flex items-center gap-1.5"><i class="fa-solid fa-school text-slate-400"></i> ${escapeHtml(team.school)}</div>` : ''}
+
+                        <div class="space-y-1 mb-4">
+                            <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Candidats :</div>
+                            ${membersList.map(m => `<div class="text-xs font-semibold text-slate-700 flex items-center gap-1.5"><i class="fa-solid fa-user text-slate-300 text-[10px]"></i> ${escapeHtml(m)}</div>`).join('') || '<span class="text-xs italic text-slate-400">Aucun candidat</span>'}
+                        </div>
+                    </div>
+
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <span><i class="fa-solid fa-user-gear"></i> ${escapeHtml(team.supervisor || 'Non renseigné')}</span>
+                        ${team.logo ? `<span class="text-emerald-600 text-[11px] font-bold flex items-center gap-1"><i class="fa-solid fa-image"></i> Logo OK</span>` : ''}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            // ÉTAPE SECrÈTE : On force la couleur du texte par script JS pur juste après l'affichage
+            setTimeout(() => {
+                document.querySelectorAll('.team-badge').forEach(badge => {
+                    const bgColor = badge.style.backgroundColor;
+                    // On extrait les valeurs RGB du fond pour calculer le contraste
+                    const rgb = bgColor.match(/\d+/g);
+                    if (rgb) {
+                        const yiq = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+                        // Si c'est clair, on met du noir forcé, sinon du blanc
+                        badge.style.setProperty('color', yiq >= 145 ? '#000000' : '#ffffff', 'important');
+                    }
+                });
+            }, 10);
+        }
+
+        function openTeamModal(teamId = null) {
+            const modal = document.getElementById('team-modal');
+            const form = document.getElementById('team-form');
+            form.reset();
+            document.getElementById('logo-preview-box').classList.add('hidden');
+
+            if (teamId) {
+                const team = teams.find(t => t.id === teamId);
+                if (team) {
+                    document.getElementById('team-modal-title').innerText = "Éditer l'Équipe";
+                    document.getElementById('team-id').value = team.id;
+                    document.getElementById('team-name').value = team.name;
+                    document.getElementById('team-color').value = team.color || '#0070c0';
+                    document.getElementById('team-school').value = team.school || '';
+                    document.getElementById('team-members').value = team.members || '';
+                    document.getElementById('team-supervisor').value = team.supervisor || '';
+                    document.getElementById('team-logo-url').value = team.logo || '';
+                    if (team.logo) previewLogoUrl(team.logo);
+                }
+            } else {
+                document.getElementById('team-modal-title').innerText = "Ajouter une Équipe";
+                document.getElementById('team-id').value = '';
+                document.getElementById('team-color').value = '#0070c0';
+                document.getElementById('team-supervisor').value = '';
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeTeamModal() {
+            document.getElementById('team-modal').classList.add('hidden');
+        }
+
+        function saveTeam(e) {
+            e.preventDefault();
+            const id = document.getElementById('team-id').value || 'team_' + Date.now();
+            const name = document.getElementById('team-name').value.trim();
+            const color = document.getElementById('team-color').value;
+            const school = document.getElementById('team-school').value.trim();
+            const members = document.getElementById('team-members').value.trim();
+            const supervisor = document.getElementById('team-supervisor').value.trim();
+            const logo = document.getElementById('team-logo-url').value.trim();
+
+            const existingIndex = teams.findIndex(t => t.id === id);
+            const teamObj = { id, name, color, school, members, supervisor, logo };
+
+            if (existingIndex >= 0) {
+                teams[existingIndex] = teamObj;
+            } else {
+                teams.push(teamObj);
+            }
+
+            if (!activeTeamId) activeTeamId = id;
+
+            pushStateToSupabase();
+            renderAllViews();
+            closeTeamModal();
+            showToast("Équipe enregistrée avec succès !");
+        }
+
+        async function deleteTeam(teamId) {
+            const confirmed = await showConfirmModal("Supprimer l'équipe", "Voulez-vous vraiment supprimer cette équipe et toutes ses évaluations ?");
+            if (confirmed) {
+                teams = teams.filter(t => t.id !== teamId);
+                delete evaluations[teamId];
+                if (activeTeamId === teamId) {
+                    activeTeamId = teams.length > 0 ? teams[0].id : null;
+                }
+                pushStateToSupabase();
+                renderAllViews();
+                showToast("Équipe supprimée.");
+            }
+        }
+
+        function handleLogoFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                document.getElementById('team-logo-url').value = dataUrl;
+                previewLogoUrl(dataUrl);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function previewLogoUrl(url) {
+            const box = document.getElementById('logo-preview-box');
+            const img = document.getElementById('logo-preview-img');
+            if (url) {
+                let formattedUrl = url;
+                if (url.includes('drive.google.com') && url.includes('/file/d/')) {
+                    const match = url.match(/\/file\/d\/([^\/]+)/);
+                    if (match && match[1]) {
+                        formattedUrl = `https://lh3.googleusercontent.com/u/0/d/${match[1]}`;
+                    }
+                }
+                img.src = formattedUrl;
+                box.classList.remove('hidden');
+            } else {
+                box.classList.add('hidden');
+            }
+        }
+
+        function openImportModal(type = 'all') {
+            selectImportType(type);
+            document.getElementById('import-modal').classList.remove('hidden');
+        }
+
+        function closeImportModal() {
+            document.getElementById('import-modal').classList.add('hidden');
+            document.getElementById('import-file-input').value = '';
+        }
+
+        function selectImportType(type) {
+            selectedImportType = type;
+            const btnAll = document.getElementById('import-type-btn-all');
+            const btnGrid = document.getElementById('import-type-btn-grid');
+            const btnTeams = document.getElementById('import-type-btn-teams');
+            const helpText = document.getElementById('import-file-help-text');
+
+            [btnAll, btnGrid, btnTeams].forEach(b => {
+                b.className = 'py-2 rounded-lg text-slate-600 hover:text-slate-900';
+            });
+
+            if (type === 'all') {
+                btnAll.className = 'py-2 rounded-lg bg-white text-brand-700 shadow-2xs font-bold';
+                helpText.innerText = "Importer une sauvegarde complète (Grille + Équipes + Évaluations)";
+            } else if (type === 'grid') {
+                btnGrid.className = 'py-2 rounded-lg bg-white text-emerald-700 shadow-2xs font-bold';
+                helpText.innerText = "Importer un fichier de Grille & Critères (.json)";
+            } else if (type === 'teams') {
+                btnTeams.className = 'py-2 rounded-lg bg-white text-brand-700 shadow-2xs font-bold';
+                helpText.innerText = "Importer un fichier d'Équipes & Candidats (.json)";
+            }
+        }
+
+        function handleImportFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const content = JSON.parse(e.target.result);
+                    processImportedJSON(content, selectedImportType);
+                } catch (err) {
+                    showToast("Fichier JSON invalide ou corrompu.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function processImportedJSON(data, type) {
+            let successMessage = "";
+
+            if (data.competitionYear) {
+                competitionYear = parseInt(data.competitionYear, 10) || competitionYear;
+                updateYearDisplays();
+            }
+
+            if (type === 'grid' || (Array.isArray(data) && data.length > 0 && data[0].criteria)) {
+                if (!Array.isArray(data)) {
+                    showToast("Format invalide pour la grille.");
+                    return;
+                }
+                competences = data;
+                
+                // CORRECTION : On réinitialise les évaluations pour éviter les conflits de clés étrangères
+                evaluations = {}; 
+                
+                successMessage = "Grille d'évaluation importée !";
+            } else if (type === 'teams' || (Array.isArray(data) && data.length > 0 && (data[0].name || data[0].school))) {
+                if (!Array.isArray(data)) {
+                    showToast("Format invalide pour les équipes.");
+                    return;
+                }
+                teams = data.map((t, idx) => ({
+                    id: t.id || 'team_imp_' + Date.now() + '_' + idx,
+                    name: t.name || `EQUIPE ${idx + 1}`,
+                    color: t.color || '#0070c0',
+                    school: t.school || '',
+                    members: Array.isArray(t.members) ? t.members.join('\n') : (t.members || t.candidates || ''),
+                    supervisor: t.supervisor || '',
+                    logo: t.logo || ''
+                }));
+                if (teams.length > 0) activeTeamId = teams[0].id;
+                successMessage = `${teams.length} équipes importées !`;
+            } else if (type === 'all' || (data.competences || data.teams)) {
+                if (data.competences && Array.isArray(data.competences)) competences = data.competences;
+                if (data.teams && Array.isArray(data.teams)) {
+                    teams = data.teams;
+                    if (teams.length > 0) activeTeamId = teams[0].id;
+                }
+                if (data.evaluations) evaluations = data.evaluations;
+                successMessage = "Sauvegarde complète importée !";
+            } else {
+                showToast("Format de fichier non reconnu.");
+                return;
+            }
+
+            // CORRECTION : On ne pousse sur Supabase que s'il s'agit d'équipes ou d'un import complet
+            if (type !== 'grid' && !(Array.isArray(data) && data.length > 0 && data[0].criteria)) {
+                pushStateToSupabase();
+            }
+            
+            renderAllViews();
+            closeImportModal();
+            showToast(successMessage);
+        }
+
+        function exportFileJSON(filename, data) {
+            const jsonStr = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function exportTeamsJSON() {
+            exportFileJSON(`Equipes_MELEC_${competitionYear}_${new Date().toISOString().slice(0,10)}.json`, teams);
+            showToast("Liste des équipes exportée (JSON) !");
+        }
+
+        function exportGridJSON() {
+            exportFileJSON(`Grille_Evaluation_MELEC_${competitionYear}_${new Date().toISOString().slice(0,10)}.json`, competences);
+            showToast("Grille d'évaluation exportée (JSON) !");
+        }
+
+        function exportAllBackupJSON() {
+            const backup = {
+                app: "ÉvalÉquipe MELEC",
+                competitionYear: competitionYear,
+                exportDate: new Date().toISOString(),
+                competences: competences,
+                teams: teams,
+                evaluations: evaluations
+            };
+            exportFileJSON(`Sauvegarde_Complete_MELEC_${competitionYear}_${new Date().toISOString().slice(0,10)}.json`, backup);
+            showToast("Sauvegarde globale exportée !");
+        }
+
+        function loadOfficial2026Grid() {
+            showConfirmModal("Recharger Grille Par Défaut", `Voulez-vous réinitialiser la grille avec les critères officiels de la session ${competitionYear} (110 Pts) ?`).then(confirmed => {
+                if (confirmed) {
+                    competences = JSON.parse(JSON.stringify(OFFICIAL_GRID));
+                    pushStateToSupabase();
+                    renderCompetencesEditor();
+                    renderEvaluationWorkspace();
+                    renderResults();
+                    showToast("Grille par défaut chargée !");
+                }
+            });
+        }
+
+        function renderCompetencesEditor() {
+            const container = document.getElementById('competences-editor-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            competences.forEach((comp, compIdx) => {
+                const compCard = document.createElement('div');
+                compCard.className = 'bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-4';
+
+                let compPoints = 0;
+                (comp.criteria || []).forEach(c => compPoints += (parseFloat(c.maxPoints) || 0));
+
+                compCard.innerHTML = `
+                    <div class="bg-slate-900 text-white p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div class="flex items-center space-x-3 w-full sm:flex-1">
+                            <span class="px-2.5 py-1 rounded bg-brand-600 font-black text-xs shrink-0">${escapeHtml(comp.code)}</span>
+                            <input type="text" value="${escapeHtml(comp.name)}" onchange="updateCompetenceName(${compIdx}, this.value)" class="bg-slate-800 text-white font-bold text-sm px-3 py-1.5 rounded border border-slate-700 flex-1 focus:outline-none focus:ring-1 focus:ring-brand-500">
+                        </div>
+                        <div class="flex items-center space-x-3 text-xs shrink-0">
+                            <span class="font-bold text-emerald-400">Total : ${compPoints} pts</span>
+                            <button onclick="addCriterion(${compIdx})" class="px-2.5 py-1 bg-brand-600 hover:bg-brand-500 text-white rounded font-bold transition">
+                                <i class="fa-solid fa-plus text-[10px]"></i> Critère
+                            </button>
+                            <button onclick="deleteCompetence(${compIdx})" class="text-slate-400 hover:text-rose-400 p-1">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="p-4 space-y-4 bg-rose-50/30">
+                        ${(comp.criteria || []).map((crit, critIdx) => renderCriterionEditorHtml(compIdx, critIdx, crit)).join('')}
+                    </div>
+                `;
+
+                container.appendChild(compCard);
+            });
+        }
+
+        function renderCriterionEditorHtml(compIdx, critIdx, crit) {
+            let sumIndPoints = (crit.indicators || []).reduce((acc, ind) => acc + (parseFloat(ind.points) || 1), 0);
+
+            return `
+                <div class="bg-rose-50 border border-rose-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-rose-200 pb-3">
+                        <div class="flex items-center space-x-3 w-full sm:w-auto flex-1">
+                            <input type="text" value="${escapeHtml(crit.name)}" onchange="updateCriterionName(${compIdx}, ${critIdx}, this.value)" class="w-full sm:w-96 text-xs font-bold text-slate-900 bg-white border border-rose-200 rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-rose-400">
+                        </div>
+                        <div class="flex items-center space-x-3 text-xs">
+                            <div class="text-[11px] text-slate-500 font-medium hidden md:block">
+                                Somme Poids : <span class="font-bold text-rose-700">${sumIndPoints}</span>
+                            </div>
+                            <label class="font-bold text-slate-700">Poids Critère (Pts) :</label>
+                            <input type="number" step="0.25" min="0" value="${crit.maxPoints}" onchange="updateCriterionPoints(${compIdx}, ${critIdx}, this.value)" class="w-20 px-2 py-1.5 bg-white border border-rose-200 rounded-xl font-black text-center text-slate-900 focus:ring-2 focus:ring-rose-400">
+                            <button onclick="deleteCriterion(${compIdx}, ${critIdx})" class="text-slate-400 hover:text-rose-600 transition p-1">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2 pt-1">
+                        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1">
+                            <span>Indicateurs de réussite :</span>
+                            <span class="text-[10px] text-slate-400">Poids / Points</span>
+                        </div>
+                        ${(crit.indicators || []).map((ind, indIdx) => `
+                            <div class="flex items-center justify-between gap-2 bg-white p-2.5 rounded-xl border border-rose-100 text-xs shadow-2xs">
+                                <input type="text" value="${escapeHtml(ind.name)}" onchange="updateIndicatorName(${compIdx}, ${critIdx}, ${indIdx}, this.value)" class="flex-1 font-medium text-slate-800 bg-transparent focus:outline-none px-2">
+                                
+                                <div class="flex items-center space-x-1 shrink-0 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                                    <label class="text-[10px] font-bold text-slate-500">Pts:</label>
+                                    <input type="number" step="0.25" min="0.1" value="${ind.points !== undefined ? ind.points : 1}" onchange="updateIndicatorPoints(${compIdx}, ${critIdx}, ${indIdx}, this.value)" class="w-14 text-center font-extrabold text-slate-800 bg-white border border-slate-300 rounded-md px-1 py-0.5 text-xs focus:outline-none">
+                                </div>
+
+                                <button onclick="deleteIndicator(${compIdx}, ${critIdx}, ${indIdx})" class="text-slate-300 hover:text-rose-500 px-1 ml-1 transition">
+                                    <i class="fa-solid fa-trash-can text-[11px]"></i>
+                                </button>
+                            </div>
+                        `).join('')}
+                        <button onclick="addIndicator(${compIdx}, ${critIdx})" class="text-xs font-bold text-brand-600 hover:text-brand-800 flex items-center gap-1.5 pt-2 px-1 transition">
+                            <i class="fa-solid fa-plus text-[10px]"></i> Ajouter Indicateur
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function openCompetenceModal() {
+            document.getElementById('comp-code-input').value = 'C3';
+            document.getElementById('comp-name-input').value = '';
+            document.getElementById('competence-modal').classList.remove('hidden');
+        }
+
+        function closeCompetenceModal() {
+            document.getElementById('competence-modal').classList.add('hidden');
+        }
+
+        function saveNewCompetence() {
+            const code = document.getElementById('comp-code-input').value.trim() || 'C3';
+            const name = document.getElementById('comp-name-input').value.trim() || 'Nouvelle Compétence';
+            competences.push({
+                id: 'comp_' + Date.now(),
+                code: code,
+                name: name,
+                criteria: []
+            });
+            pushStateToSupabase();
+            renderCompetencesEditor();
+            closeCompetenceModal();
+            showToast("Nouvelle compétence ajoutée !");
+        }
+
+        function updateCompetenceName(idx, val) {
+            competences[idx].name = val;
+            pushStateToSupabase();
+        }
+
+        function deleteCompetence(idx) {
+            competences.splice(idx, 1);
+            pushStateToSupabase();
+            renderCompetencesEditor();
+        }
+
+        function addCriterion(compIdx) {
+            competences[compIdx].criteria.push({
+                id: 'crit_' + Date.now(),
+                name: 'Nouveau critère d\'évaluation',
+                maxPoints: 5,
+                indicators: [{ id: 'ind_' + Date.now(), name: 'Indicateur de réussite 1', points: 5 }]
+            });
+            pushStateToSupabase();
+            renderCompetencesEditor();
+        }
+
+        function updateCriterionName(cIdx, critIdx, val) {
+            competences[cIdx].criteria[critIdx].name = val;
+            pushStateToSupabase();
+        }
+
+        function updateCriterionPoints(cIdx, critIdx, val) {
+            competences[cIdx].criteria[critIdx].maxPoints = parseFloat(val) || 0;
+            pushStateToSupabase();
+            renderCompetencesEditor();
+        }
+
+        function deleteCriterion(cIdx, critIdx) {
+            competences[cIdx].criteria.splice(critIdx, 1);
+            pushStateToSupabase();
+            renderCompetencesEditor();
+        }
+
+        function addIndicator(cIdx, critIdx) {
+            competences[cIdx].criteria[critIdx].indicators.push({
+                id: 'ind_' + Date.now(),
+                name: 'Nouvel indicateur de réussite',
+                points: 1
+            });
+            pushStateToSupabase();
+            renderCompetencesEditor();
+        }
+
+        function updateIndicatorName(cIdx, critIdx, indIdx, val) {
+            competences[cIdx].criteria[critIdx].indicators[indIdx].name = val;
+            pushStateToSupabase();
+        }
+
+        function updateIndicatorPoints(cIdx, critIdx, indIdx, val) {
+            const p = parseFloat(val) || 0.5;
+            competences[cIdx].criteria[critIdx].indicators[indIdx].points = p;
+            pushStateToSupabase();
+            renderCompetencesEditor();
+        }
+
+        function deleteIndicator(cIdx, critIdx, indIdx) {
+            competences[cIdx].criteria[critIdx].indicators.splice(indIdx, 1);
+            pushStateToSupabase();
+            renderCompetencesEditor();
+        }
+
+        function renderEvaluationSelect() {
+            const select = document.getElementById('eval-team-select');
+            if (!select) return;
+            select.innerHTML = '';
+            teams.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.id;
+                opt.innerText = `${t.name} - ${t.school || 'Sans établissement'}`;
+                if (t.id === activeTeamId) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        function changeEvaluationTeam(teamId) {
+            activeTeamId = teamId;
+            renderEvaluationWorkspace();
+        }
+
+        function getTeamEvaluation(teamId) {
+            if (!evaluations[teamId]) {
+                evaluations[teamId] = {
+                    sstQuizScore: 0,
+                    indicators: {},
+                    manualCriteriaScores: {}
+                };
+            }
+            return evaluations[teamId];
+        }
+
+        function updateSSTQuizScore(val) {
+            if (!activeTeamId) return;
+            const evalObj = getTeamEvaluation(activeTeamId);
+            evalObj.sstQuizScore = Math.min(10, Math.max(0, parseFloat(val) || 0));
+            pushStateToSupabase();
+            updateEvaluationHeaderScores();
+            renderResults();
+        }
+
+        function setIndicatorLevel(teamId, indId, level) {
+            const evalObj = getTeamEvaluation(teamId);
+            if (!evalObj.indicators) evalObj.indicators = {};
+            
+            // Toggle level if clicked again
+            if (evalObj.indicators[indId] && evalObj.indicators[indId].level === level) {
+                delete evalObj.indicators[indId];
+            } else {
+                evalObj.indicators[indId] = { level: level };
+            }
+
+            pushStateToSupabase(true); // Broadcast realtime immediately
+            renderEvaluationWorkspace();
+        }
+
+        function setManualCriterionScore(teamId, critId, val) {
+            const evalObj = getTeamEvaluation(teamId);
+            if (!evalObj.manualCriteriaScores) evalObj.manualCriteriaScores = {};
+
+            if (val === "" || val === null || val === undefined) {
+                delete evalObj.manualCriteriaScores[critId];
+            } else {
+                evalObj.manualCriteriaScores[critId] = parseFloat(val) || 0;
+            }
+
+            pushStateToSupabase(true);
+            renderEvaluationWorkspace();
+        }
+
+        function renderEvaluationWorkspace() {
+            const workspace = document.getElementById('eval-workspace');
+            if (!workspace) return;
+            workspace.innerHTML = '';
+
+            if (!activeTeamId || teams.length === 0) {
+                workspace.innerHTML = `<div class="text-center py-12 text-slate-400 font-bold">Veuillez sélectionner ou ajouter une équipe.</div>`;
+                return;
+            }
+
+            const currentTeam = teams.find(t => t.id === activeTeamId);
+            if (currentTeam) {
+                const pill = document.getElementById('floating-team-badge-pill');
+                const school = document.getElementById('floating-team-school');
+                const members = document.getElementById('floating-team-members');
+                if (pill) {
+                    pill.innerText = currentTeam.name || 'ÉQUIPE';
+                    const bgColor = currentTeam.color || '#0070c0';
+                    pill.style.backgroundColor = bgColor;
+                    
+                    // Calcul automatique du contraste (Texte noir si fond clair, blanc si fond foncé)
+                    let hex = bgColor.trim();
+                    if (hex.startsWith('#')) hex = hex.substring(1);
+                    if (hex.length === 3) hex = hex.split('').map(char => char + char).join('');
+                    if (hex.length === 6) {
+                        const r = parseInt(hex.substr(0, 2), 16);
+                        const g = parseInt(hex.substr(2, 2), 16);
+                        const b = parseInt(hex.substr(4, 2), 16);
+                        const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+                        pill.style.color = yiq >= 128 ? '#000000' : '#ffffff';
+                    } else {
+                        pill.style.color = '#ffffff';
+                    }
+                }
+                if (school) school.innerHTML = `<i class="fa-solid fa-school text-brand-400 text-xs"></i> <span>${escapeHtml(currentTeam.school || 'Sans établissement')}</span>`;
+                if (members) {
+                    const mList = (currentTeam.members || '').split(/\n|,/).map(m => m.trim()).filter(m => m).join(' • ');
+                    members.innerText = mList || 'Aucun candidat';
+                }
+            }
+
+            const teamEval = getTeamEvaluation(activeTeamId);
+            document.getElementById('sst-quiz-score-input').value = teamEval.sstQuizScore || 0;
+
+            let missingCount = 0;
+            let totalIndicatorsInGrid = 0;
+            let ratedIndicatorsInGrid = 0;
+            let colorCounts = { 0: 0, 1: 0, 2: 0, 3: 0 };
+
+            competences.forEach(comp => {
+                const compBlock = document.createElement('div');
+                compBlock.className = 'bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden mb-6';
+
+                let compHtml = `
+                    <div class="bg-slate-900 text-white px-4 py-3 font-bold text-sm flex items-center justify-between">
+                        <span class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 rounded bg-brand-600 text-xs font-black">${escapeHtml(comp.code)}</span>
+                            <span>${escapeHtml(comp.name)}</span>
+                        </span>
+                    </div>
+                    <div class="p-4 space-y-4 bg-slate-50/50">
+                `;
+
+                (comp.criteria || []).forEach(crit => {
+                    const maxPts = parseFloat(crit.maxPoints) || 0;
+                    
+                    let earnedWeightedSum = 0;
+                    let totalIndPointsWeight = 0;
+
+                    const indListHtml = (crit.indicators || []).map(ind => {
+                        totalIndicatorsInGrid++;
+                        const indPts = ind.points !== undefined ? parseFloat(ind.points) : 1;
+                        totalIndPointsWeight += indPts;
+
+                        const indEval = teamEval.indicators ? teamEval.indicators[ind.id] : null;
+                        const activeLevel = indEval !== undefined && indEval !== null ? indEval.level : null;
+
+                        if (activeLevel !== null && activeLevel !== undefined) {
+                            ratedIndicatorsInGrid++;
+                            earnedWeightedSum += COLOR_LEVELS[activeLevel].ratio * indPts;
+                            if (colorCounts[activeLevel] !== undefined) colorCounts[activeLevel]++;
+                        } else {
+                            missingCount++;
+                        }
+
+                        return `
+                            <div class="bg-white p-3 rounded-xl border border-rose-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                <div class="flex-1 text-xs font-semibold text-slate-800 leading-snug">
+                                    ${escapeHtml(ind.name)}
+                                    ${!isJuryMode ? `<span class="text-[10px] text-rose-600 font-bold ml-1">(Poids: ${indPts}pt)</span>` : ''}
+                                </div>
+                                <div class="flex items-center space-x-1.5 shrink-0">
+                                    ${[0, 1, 2, 3].map(lvl => {
+                                        const isSel = activeLevel === lvl;
+                                        const lvlInfo = COLOR_LEVELS[lvl];
+                                        return `
+                                            <button onclick="setIndicatorLevel('${activeTeamId}', '${ind.id}', ${lvl})" class="w-7 h-7 rounded-full transition flex items-center justify-center text-white text-xs ${lvlInfo.bg} ${isSel ? 'ring-4 ring-slate-900 scale-110 font-bold shadow-md' : 'opacity-70 hover:opacity-100'}">
+                                                ${isSel ? '<i class="fa-solid fa-check text-[10px]"></i>' : ''}
+                                            </button>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    const calculatedScore = totalIndPointsWeight > 0 ? ((earnedWeightedSum / totalIndPointsWeight) * maxPts) : 0;
+                    const manualScore = teamEval.manualCriteriaScores ? teamEval.manualCriteriaScores[crit.id] : null;
+                    const finalCritScore = manualScore !== null && manualScore !== undefined ? manualScore : calculatedScore;
+
+                    compHtml += `
+                        <div class="bg-rose-50/80 border border-rose-200 rounded-2xl p-4 shadow-sm space-y-4 mb-4">
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-rose-200 pb-3">
+                                <div class="flex items-center space-x-3 flex-1">
+                                    <h4 class="text-xs md:text-sm font-bold text-slate-900 leading-relaxed">${escapeHtml(crit.name)}</h4>
+                                </div>
+                                
+                                <div class="flex items-center space-x-3 shrink-0 ${isJuryMode ? 'hidden' : ''}">
+                                    <div class="text-right px-2">
+                                        <div class="text-[10px] uppercase font-extrabold text-rose-700 tracking-wider">Poids Critère</div>
+                                        <div class="text-sm font-black text-slate-900">${maxPts} pts</div>
+                                    </div>
+                                    <div class="flex items-center space-x-3 bg-white px-3 py-1.5 rounded-xl border border-rose-200 shadow-2xs">
+                                        <div class="text-right">
+                                            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Score Critère</div>
+                                            <div class="text-sm font-black text-rose-600">${finalCritScore.toFixed(2)} / ${maxPts}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-3">
+                                ${indListHtml}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                compHtml += `</div>`;
+                compBlock.innerHTML = compHtml;
+                workspace.appendChild(compBlock);
+            });
+
+            // Update stats & counters
+            const missingBanner = document.getElementById('missing-indicators-banner');
+            const missingBadge = document.getElementById('missing-count-badge');
+            const missingText = document.getElementById('missing-indicators-text');
+
+            if (missingCount === 0 && totalIndicatorsInGrid > 0) {
+                missingBanner.className = "w-full sm:w-auto px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold flex items-center justify-between gap-3";
+                missingText.innerText = "Fiche d'évaluation complète !";
+                missingBadge.className = "px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 font-extrabold text-xs";
+                missingBadge.innerText = "100% Validé";
+            } else {
+                const missingBanner = document.getElementById('missing-indicators-banner');
+            const missingBadge = document.getElementById('missing-count-badge');
+            const missingText = document.getElementById('missing-indicators-text');
+
+            if (missingCount === 0 && totalIndicatorsInGrid > 0) {
+                if (missingBanner) missingBanner.className = "w-full sm:w-auto px-4 py-2 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold flex items-center justify-between gap-3";
+                if (missingText) missingText.innerText = "Fiche d'évaluation complète !";
+                if (missingBadge) {
+                    missingBadge.className = "px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900 font-extrabold text-xs";
+                    missingBadge.innerText = "100% Validé";
+                }
+            } else {
+                if (missingBanner) missingBanner.className = "w-full sm:w-auto px-4 py-2 rounded-lg bg-amber-50 border border-amber-300 text-amber-800 text-xs font-bold flex items-center justify-between gap-3";
+                if (missingText) missingText.innerText = "Statut : Évaluation en cours";
+                if (missingBadge) {
+                    missingBadge.className = "px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-extrabold text-xs";
+                    missingBadge.innerText = `${missingCount} manquant(s)`;
+                }
+            }
+
+            // Sécurisation des compteurs de pastilles de couleurs
+            for (let i = 0; i <= 3; i++) {
+                const statEl = document.getElementById(`stat-count-${i}`);
+                if (statEl) statEl.innerText = colorCounts[i];
+            }
+
+            updateEvaluationHeaderScores();
+        }
+    }
+
+        function calculateTeamTotalScore(teamId) {
+            const teamEval = evaluations[teamId] || { sstQuizScore: 0, indicators: {}, manualCriteriaScores: {} };
+            let sstScore = parseFloat(teamEval.sstQuizScore) || 0;
+            let sumRealisation = 0;
+
+            competences.forEach(comp => {
+                (comp.criteria || []).forEach(crit => {
+                    const maxPts = parseFloat(crit.maxPoints) || 0;
+                    let earnedWeightedSum = 0;
+                    let totalIndPointsWeight = 0;
+
+                    (crit.indicators || []).forEach(ind => {
+                        const indPts = ind.points !== undefined ? parseFloat(ind.points) : 1;
+                        totalIndPointsWeight += indPts;
+
+                        const indEval = teamEval.indicators ? teamEval.indicators[ind.id] : null;
+                        if (indEval !== undefined && indEval !== null && indEval.level !== undefined && indEval.level !== null) {
+                            earnedWeightedSum += COLOR_LEVELS[indEval.level].ratio * indPts;
+                        }
+                    });
+
+                    const calculatedScore = totalIndPointsWeight > 0 ? ((earnedWeightedSum / totalIndPointsWeight) * maxPts) : 0;
+                    const manualScore = teamEval.manualCriteriaScores ? teamEval.manualCriteriaScores[crit.id] : null;
+                    const finalCritScore = manualScore !== null && manualScore !== undefined ? manualScore : calculatedScore;
+
+                    sumRealisation += finalCritScore;
+                });
+            });
+
+            return {
+                sstScore: sstScore,
+                realisationScore: sumRealisation,
+                totalScore: sstScore + sumRealisation
+            };
+        }
+
+        function updateEvaluationHeaderScores() {
+            if (!activeTeamId) return;
+            const res = calculateTeamTotalScore(activeTeamId);
+            
+            const totalEl = document.getElementById('eval-total-score');
+            const floatTotalEl = document.getElementById('floating-eval-total-score');
+            const progressEl = document.getElementById('eval-progress-pct');
+            const floatProgressEl = document.getElementById('floating-eval-progress-pct');
+
+            if (totalEl) totalEl.innerText = res.totalScore.toFixed(2);
+            if (floatTotalEl) floatTotalEl.innerText = res.totalScore.toFixed(2);
+
+            let totalIndicators = 0;
+            let ratedIndicators = 0;
+            const teamEval = getTeamEvaluation(activeTeamId);
+
+            competences.forEach(c => (c.criteria || []).forEach(crit => (crit.indicators || []).forEach(i => {
+                totalIndicators++;
+                if (teamEval.indicators && teamEval.indicators[i.id] && teamEval.indicators[i.id].level !== undefined) {
+                    ratedIndicators++;
+                }
+            })));
+
+            const pct = totalIndicators > 0 ? Math.round((ratedIndicators / totalIndicators) * 100) : 0;
+
+            if (progressEl) progressEl.innerText = `${pct}%`;
+            if (floatProgressEl) floatProgressEl.innerText = `${pct}%`;
+        }
+
+        function renderPosters() {
+            const container = document.getElementById('posters-container');
+            if (!container) return;
+            container.innerHTML = '';
+
+            teams.forEach(team => {
+                const poster = document.createElement('div');
+                poster.className = 'poster-card bg-white border border-slate-300 shadow-md rounded-2xl p-8 mb-8 flex flex-col justify-between';
+
+                const membersList = (team.members || '').split(/\n|,/).map(m => m.trim()).filter(m => m);
+                const teamColor = team.color || '#0070c0';
+                
+                // Couleur automatique du texte du header selon le fond
+                const textColor = getContrastTextColor(teamColor);
+
+                poster.innerHTML = `
+                    <div class="poster-header-box shadow-sm mb-6 p-4 rounded-xl" style="background-color: ${teamColor}; color: ${textColor};">
+                        <h1 class="text-6xl font-black tracking-wider uppercase" style="color: ${textColor};">${escapeHtml(team.name)}</h1>
+                    </div>
+
+                    <div class="text-center w-full">
+                        <span class="text-2xl font-black uppercase text-slate-400 tracking-wider">Candidats Équipe :</span>
+                        <div class="text-5xl font-extrabold text-slate-900 mt-1">
+                            ${membersList.join('<br>') || 'Noms non renseignés'}
+                        </div>
+                    </div>
+
+                    <!-- CONTENEUR DU LOGO EN LARGEUR MAX -->
+                    <div class="flex-none flex flex-col items-center justify-center text-center py-4 px-4 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50 my-3 w-full">
+                        ${team.logo ? `
+                            <img src="${escapeHtml(team.logo)}" alt="Logo ${escapeHtml(team.school)}" class="poster-logo w-full max-h-64 object-contain shadow-sm rounded-xl">
+                        ` : `
+                            <div class="w-16 h-16 rounded-2xl bg-slate-200 text-slate-400 flex items-center justify-center text-2xl">
+                                <i class="fa-solid fa-school"></i>
+                            </div>
+                        `}
+                    </div>
+
+                    <div class="mt-4 pt-4 border-t-2 border-slate-200 flex flex-col gap-4 text-slate-800">
+                        ${team.supervisor ? `
+                            <div class="text-center w-full">
+                                <span class="text-2xl font-black uppercase text-slate-400 tracking-wider">Surveillant :</span>
+                                <div class="text-5xl font-bold text-slate-700 mt-1">${escapeHtml(team.supervisor)}</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                container.appendChild(poster);
+            });
+        }
+
+       function renderResults() {
+    const tableBody = document.getElementById('results-table-body');
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+
+    const rankingData = teams.map(team => {
+        const scores = calculateTeamTotalScore(team.id);
+        return {
+            team,
+            sstScore: scores.sstScore,
+            realisationScore: scores.realisationScore,
+            totalScore: scores.totalScore
+        };
+    }).sort((a, b) => b.totalScore - a.totalScore);
+
+    rankingData.forEach((item, index) => {
+        const tr = document.createElement('tr');
+        tr.className = index % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+
+        const rankBadge = index === 0 ? '<span class="px-2 py-1 bg-amber-400 text-slate-900 font-black rounded-full text-xs">🥇 1</span>' :
+                            index === 1 ? '<span class="px-2 py-1 bg-slate-300 text-slate-900 font-black rounded-full text-xs">🥈 2</span>' :
+                            index === 2 ? '<span class="px-2 py-1 bg-amber-700 text-white font-black rounded-full text-xs">🥉 3</span>' :
+                            `<span class="font-bold text-slate-500">${index + 1}</span>`;
+
+        // 1. Définition de la couleur de fond et calcul dynamique du contraste du texte
+        const teamBgColor = item.team.color || '#0070c0';
+        let r = parseInt(teamBgColor.substring(1, 3), 16) || 0;
+        let g = parseInt(teamBgColor.substring(3, 5), 16) || 0;
+        let b = parseInt(teamBgColor.substring(5, 7), 16) || 0;
+        let yiq = (r * 299 + g * 587 + b * 114) / 1000;
+        const teamTextColor = yiq >= 145 ? '#000000' : '#ffffff';
+
+        tr.innerHTML = `
+            <td class="p-3 text-center">${rankBadge}</td>
+            <td class="p-3">
+                <span class="font-black px-2 py-0.5 rounded text-xs inline-block shadow-sm" style="background-color: ${teamBgColor}; color: ${teamTextColor};">
+                    ${escapeHtml(item.team.name)}
+                </span>
+            </td>
+            <td class="p-3 font-medium text-slate-700">${escapeHtml(item.team.members || '-')}</td>
+            <td class="p-3 font-semibold text-slate-800">${escapeHtml(item.team.school || '-')}</td>
+            <td class="p-3 text-center font-black text-emerald-600 text-sm">${item.totalScore.toFixed(2)}</td>
+            <td class="p-3 text-center">
+                <button onclick="switchTab('evaluation'); changeEvaluationTeam('${item.team.id}')" class="px-2 py-1 bg-slate-800 text-white font-bold text-[11px] rounded hover:bg-slate-700 transition">
+                    Évaluer
+                </button>
+            </td>
+        `;
+        tableBody.appendChild(tr);
+    });
+
+    // --- GRAPHIQUE 1 : Bar Chart ---
+    const barCtx = document.getElementById('bar-chart-results');
+    if (barCtx) {
+        if (typeof barChartInstance !== 'undefined' && barChartInstance) barChartInstance.destroy();
+
+        const teamLabels = rankingData.map(d => d.team.name);
+        const teamTotals = rankingData.map(d => Number(d.totalScore.toFixed(2)));
+        const teamColors = rankingData.map(d => d.team.color || '#0284c7');
+
+        barChartInstance = new Chart(barCtx, {
+            type: 'bar',
+            data: {
+                labels: teamLabels,
+                datasets: [{
+                    label: 'Score Total (/110)',
+                    data: teamTotals,
+                    backgroundColor: teamColors,
+                    borderWidth: 1,
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, max: 110 } }
+            }
+        });
+    }
+
+    // --- GRAPHIQUE 2 : Radar Chart ---
+    const radarCtx = document.getElementById('radar-chart-results');
+    if (radarCtx) {
+        if (typeof radarChartInstance !== 'undefined' && radarChartInstance) radarChartInstance.destroy();
+
+        const compLabels = competences.map(c => c.code);
+        const datasets = rankingData.map((item, idx) => {
+            const teamEval = evaluations[item.team.id] || { indicators: {} };
+            const compScores = competences.map(comp => {
+                let compEarned = 0;
+                let compMax = 0;
+
+                (comp.criteria || []).forEach(crit => {
+                    const maxPts = parseFloat(crit.maxPoints) || 0;
+                    compMax += maxPts;
+                    let earnedWeightedSum = 0;
+                    let totalIndPointsWeight = 0;
+
+                    (crit.indicators || []).forEach(ind => {
+                        const indPts = ind.points !== undefined ? parseFloat(ind.points) : 1;
+                        totalIndPointsWeight += indPts;
+                        const indEval = teamEval.indicators ? teamEval.indicators[ind.id] : null;
+                        if (indEval && indEval.level !== undefined && indEval.level !== null) {
+                            earnedWeightedSum += COLOR_LEVELS[indEval.level].ratio * indPts;
+                        }
+                    });
+
+                    const calculatedScore = totalIndPointsWeight > 0 ? ((earnedWeightedSum / totalIndPointsWeight) * maxPts) : 0;
+                    const manualScore = teamEval.manualCriteriaScores ? teamEval.manualCriteriaScores[crit.id] : null;
+                    compEarned += (manualScore !== null && manualScore !== undefined ? manualScore : calculatedScore);
+                });
+
+                return compMax > 0 ? Number(((compEarned / compMax) * 20).toFixed(1)) : 0;
+            });
+
+            if (idx >= 3) return null;
+
+            return {
+                label: item.team.name,
+                data: compScores,
+                backgroundColor: (item.team.color || '#0284c7') + '33',
+                borderColor: item.team.color || '#0284c7',
+                borderWidth: 2,
+                pointBackgroundColor: item.team.color || '#0284c7'
+            };
+        }).filter(ds => ds !== null);
+
+        radarChartInstance = new Chart(radarCtx, {
+            type: 'radar',
+            data: { labels: compLabels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { r: { beginAtZero: true, max: 20 } }
+            }
+        });
+    }
+}
+
+/* =========================================================
+   ÉCOUTEUR AUTOMATIQUE DES CHANGEMENTS (AUTOSAVE) & CHARGEMENT INITIAL
+   ========================================================= */
+document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Applique l'affichage du mode jury dès le chargement de la page
+    applyJuryModeUI();
+
+    // 2. CHARGEMENT ET MISE À JOUR DEPUIS SUPABASE
+    if (supabaseClient) {
+        try {
+            // FORCE EN PREMIER L'ENVOI DES 12 ÉQUIPES COMPLÈTES VERS SUPABASE
+            console.log("Mise à jour des 12 équipes complètes vers Supabase...");
+            await syncTeamsToSupabase();
+
+            // Récupération des équipes fraîchement synchronisées
+            const { data: fetchedTeams, error: teamsError } = await supabaseClient
+                .from('teams')
+                .select('*')
+                .order('id', { ascending: true });
+
+            if (!teamsError && fetchedTeams && fetchedTeams.length > 0) {
+                teams = fetchedTeams;
+                if (typeof processTeamsColors === 'function') processTeamsColors();
+            } else if (teamsError) {
+                console.error("Erreur lors de la récupération des équipes :", teamsError.message);
+            }
+
+            // Récupération des évaluations existantes
+            const { data: fetchedEvals, error: evalsError } = await supabaseClient
+                .from('evaluations')
+                .select('*');
+
+            if (!evalsError && fetchedEvals) {
+                fetchedEvals.forEach(evalRow => {
+                    if (evalRow.team_id) {
+                        evaluations[evalRow.team_id] = evalRow.scores || {};
+                    }
+                });
+            }
+
+            // Rafraîchissement de l'interface graphique
+            if (typeof renderAllViews === 'function') {
+                renderAllViews();
+            } else if (typeof updateTeamSelector === 'function') {
+                updateTeamSelector();
+            }
+
+        } catch (err) {
+            console.error("Échec du chargement initial des données Supabase :", err);
+        }
+    } else {
+        console.warn("Supabase n'est pas initialisé, conservation des données locales.");
+    }
+
+    // 3. Écouteurs d'événements pour l'autosave
+    document.body.addEventListener('input', () => {
+        if (activeTeamId) {
+            triggerAutosave();
+        }
+    });
+
+    document.body.addEventListener('change', () => {
+        if (activeTeamId) {
+            triggerAutosave();
+        }
+    });
+});
+
+/* =========================================================
+   FONCTIONS D'IMPRESSION ET UTILITAIRES DE CONFIRMATION
+   ========================================================= */
+function printPostersOnly() {
+    document.body.classList.add('printing-posters');
+    window.print();
+    setTimeout(() => {
+        document.body.classList.remove('printing-posters');
+    }, 500);
+}
+
+function printResultsOnly() {
+    document.body.classList.add('printing-results');
+    window.print();
+    setTimeout(() => {
+        document.body.classList.remove('printing-results');
+    }, 500);
+}
+
+function printEvaluationGrid() {
+    document.body.classList.add('printing-evaluation');
+    window.print();
+    setTimeout(() => {
+        document.body.classList.remove('printing-evaluation');
+    }, 500);
+}
+
+function showConfirmModal(title, message) {
+    return new Promise((resolve) => {
+        document.getElementById('confirm-title').innerText = title;
+        document.getElementById('confirm-message').innerText = message;
+        document.getElementById('confirm-modal').classList.remove('hidden');
+        confirmResolver = resolve;
+    });
+}
+
+function closeConfirmModal(result) {
+    document.getElementById('confirm-modal').classList.add('hidden');
+    if (confirmResolver) {
+        confirmResolver(result);
+        confirmResolver = null;
+    }
+}
+
+function resetAllDataConfirmation() {
+    showConfirmModal("Réinitialisation Totale", "Voulez-vous vraiment effacer toutes les données et réinitialiser l'application ?").then(confirmed => {
+        if (confirmed) {
+            localStorage.clear();
+            location.reload();
+        }
+    });
+}
+
+function showToast(message, isError = false) {
+    const toast = document.getElementById('toast');
+    const msgEl = document.getElementById('toast-message');
+    const iconEl = document.getElementById('toast-icon');
+
+    if (!toast || !msgEl) return;
+
+    msgEl.innerText = message;
+    if (isError) {
+        toast.className = "fixed bottom-5 right-5 bg-rose-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center space-x-3 z-50 transition-all duration-300 transform translate-y-0 opacity-100";
+        iconEl.className = "fa-solid fa-triangle-exclamation text-rose-300";
+    } else {
+        toast.className = "fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center space-x-3 z-50 transition-all duration-300 transform translate-y-0 opacity-100";
+        iconEl.className = "fa-solid fa-circle-check text-emerald-400";
+    }
+
+    setTimeout(() => {
+        toast.className = "fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center space-x-3 z-50 transition-all duration-300 transform translate-y-20 opacity-0 pointer-events-none";
+    }, 3000);
+}
+</script>
+</body>
+</html>
